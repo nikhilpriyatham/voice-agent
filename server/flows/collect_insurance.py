@@ -4,9 +4,9 @@ from typing import Dict
 
 from loguru import logger
 from pipecat_flows import FlowManager
+from utils.node_factory import create_node
 
 from flows.utils import handle_flow_error
-from utils.node_factory import create_function_transition, create_node
 
 # Configure logging
 logger = logger.bind(name=__name__)
@@ -24,7 +24,8 @@ async def handle_collect_insurance(args: Dict, result: dict, flow_manager: FlowM
         flow_manager.state["insurance_data"] = {}
 
     await flow_manager.set_node(
-        "collect_policy_holder", create_collect_policy_holder_node(patient_name, device_ordered)
+        "collect_policy_holder",
+        create_collect_policy_holder_node(patient_name, device_ordered),
     )
 
 
@@ -35,7 +36,9 @@ async def handle_collect_dob(args: Dict, result: dict, flow_manager: FlowManager
 
     # Store the collected data
     if "policy_holder_name" in args:
-        flow_manager.state["insurance_data"]["policy_holder_name"] = args["policy_holder_name"]
+        flow_manager.state["insurance_data"]["policy_holder_name"] = args[
+            "policy_holder_name"
+        ]
 
     patient_name = flow_manager.state.get("patient_name", "the patient")
     device_ordered = flow_manager.state.get("device_ordered", "medical equipment")
@@ -45,7 +48,9 @@ async def handle_collect_dob(args: Dict, result: dict, flow_manager: FlowManager
 
 
 @handle_flow_error
-async def handle_collect_policy_number(args: Dict, result: dict, flow_manager: FlowManager):
+async def handle_collect_policy_number(
+    args: Dict, result: dict, flow_manager: FlowManager
+):
     """Handle collecting policy number after DOB."""
     logger.info(f"Collected DOB: {args}")
 
@@ -56,12 +61,15 @@ async def handle_collect_policy_number(args: Dict, result: dict, flow_manager: F
     patient_name = flow_manager.state.get("patient_name", "the patient")
     device_ordered = flow_manager.state.get("device_ordered", "medical equipment")
     await flow_manager.set_node(
-        "collect_policy_number", create_collect_policy_number_node(patient_name, device_ordered)
+        "collect_policy_number",
+        create_collect_policy_number_node(patient_name, device_ordered),
     )
 
 
 @handle_flow_error
-async def handle_collect_group_number(args: Dict, result: dict, flow_manager: FlowManager):
+async def handle_collect_group_number(
+    args: Dict, result: dict, flow_manager: FlowManager
+):
     """Handle collecting group number after policy number."""
     logger.info(f"Collected policy number: {args}")
 
@@ -72,12 +80,15 @@ async def handle_collect_group_number(args: Dict, result: dict, flow_manager: Fl
     patient_name = flow_manager.state.get("patient_name", "the patient")
     device_ordered = flow_manager.state.get("device_ordered", "medical equipment")
     await flow_manager.set_node(
-        "collect_group_number", create_collect_group_number_node(patient_name, device_ordered)
+        "collect_group_number",
+        create_collect_group_number_node(patient_name, device_ordered),
     )
 
 
 @handle_flow_error
-async def handle_collect_insurance_provider(args: Dict, result: dict, flow_manager: FlowManager):
+async def handle_collect_insurance_provider(
+    args: Dict, result: dict, flow_manager: FlowManager
+):
     """Handle collecting insurance provider name after group number."""
     logger.info(f"Collected group number: {args}")
 
@@ -100,7 +111,9 @@ async def handle_finish_collection(args: Dict, result: dict, flow_manager: FlowM
 
     # Store the final piece of data
     if "insurance_provider" in args:
-        flow_manager.state["insurance_data"]["insurance_provider"] = args["insurance_provider"]
+        flow_manager.state["insurance_data"]["insurance_provider"] = args[
+            "insurance_provider"
+        ]
 
     # Log all collected data
     insurance_data = flow_manager.state.get("insurance_data", {})
@@ -118,34 +131,27 @@ async def handle_finish_collection(args: Dict, result: dict, flow_manager: FlowM
 def create_collect_policy_holder_node(patient_name: str, device_ordered: str) -> dict:
     """Create node for collecting policy holder name."""
 
-    task_message = f"""For this step, collect the insurance policy holder's name from {patient_name}.
+    task_message = f"""Collect the insurance policy holder's name from {patient_name}.
 
-Say something like: "Great! So... first things first — could you tell me the name of the policy holder on your insurance?"
+Ask: "Great! So... first things first — could you tell me the name of the policy holder on your insurance?"
 
-Wait for their response. Listen carefully to EXACTLY what name they say.
+Wait for their response.
 
-IMPORTANT - If they pause mid-sentence or give an incomplete response (like "It's..." or "The name is..."):
-- DO NOT repeat or rephrase the question
-- Simply say "Take your time..." or "Mmhmm..." and wait for them to continue
-- Only re-ask if they explicitly say "What?" or "Can you repeat that?"
+If they pause or give incomplete response (like "It's..." or "The name is..."):
+- Just say "Take your time..." and wait
+- Do NOT repeat the question
 
-Once they provide the COMPLETE policy holder name:
-- You MUST repeat back the EXACT name they just told you (not the patient name "{patient_name}")
-- Confirm warmly: "Wonderful! So that's [repeat the EXACT name they said]... let me just make sure I got that right. Is that correct?"
-- If they say YES or confirm, respond with "Perfect!" and use the save_policy_holder function with the EXACT name they provided
+CRITICAL RULE - When they give you a name (e.g., "John Smith"):
+1. You MUST say their name out loud in your response
+2. Say: "Wonderful! So that's John Smith... let me just make sure I got that right. Is that correct?"
+3. NEVER say "So that's..." without the actual name - always include the name!
+4. If they confirm, say "Perfect!" and call save_policy_holder
 
-IMPORTANT - The policy holder may be DIFFERENT from {patient_name}. Always use what they tell you.
+The policy holder may be DIFFERENT from {patient_name}. Use what they tell you.
 
-IMPORTANT - If they CORRECT you or spell out their name:
-- Listen carefully to the correction or spelling
-- Repeat the CORRECTED name back: "Oh, got it! So that's [corrected name]... thank you for clarifying!"
-- Then IMMEDIATELY use the save_policy_holder function with the CORRECTED name
-- Do NOT ask for confirmation again after a correction - just save it
-
-Examples of corrections to watch for:
-- "No, it's actually Smith, not Smyth"
-- "It's spelled P-R-I-Y-A-D-H-A-M"
-- "Close! But it's Johnson with an H"
+If they correct you:
+- Say the corrected name: "Oh, got it! So that's Sarah Johnson!"
+- Call save_policy_holder immediately with the corrected name
 """
 
     custom_functions = [
@@ -346,7 +352,9 @@ IMPORTANT - If they CORRECT the number:
     )
 
 
-def create_collect_insurance_provider_node(patient_name: str, device_ordered: str) -> dict:
+def create_collect_insurance_provider_node(
+    patient_name: str, device_ordered: str
+) -> dict:
     """Create node for collecting insurance provider/company name."""
 
     task_message = """For this step, collect the name of the insurance provider/company.
