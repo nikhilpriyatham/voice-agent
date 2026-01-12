@@ -74,14 +74,14 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     else:
         logger.warning("MEM0_API_KEY not set, conversation memory disabled")
 
-    # Configure VAD
+    # Configure VAD - tuned for short responses like "yes" and "no"
     vad_params = VADParams(
-        confidence=0.7,
-        min_volume=0.6,
-        start_secs=0.2,
-        stop_secs=0.8,
+        confidence=0.5,    # Lower threshold to catch quieter speech
+        min_volume=0.4,    # Lower volume threshold for soft responses
+        start_secs=0.1,    # Shorter start time to catch brief "yes/no"
+        stop_secs=0.6,     # Shorter stop time for snappier responses
     )
-    vad_analyzer = SileroVADAnalyzer(sample_rate=8000, params=vad_params)
+    vad_analyzer = SileroVADAnalyzer(sample_rate=16000, params=vad_params)
 
     # Initialize SoundfileMixer for background audio
     # Note: Audio file should match transport sample rate (typically 16kHz or 8kHz)
