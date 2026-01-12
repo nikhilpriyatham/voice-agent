@@ -1,5 +1,0 @@
-# Nixpacks configuration for Railway deployment
-# Python will be auto-detected from requirements.txt
-
-[start]
-cmd = "cd server && python bot.py"
