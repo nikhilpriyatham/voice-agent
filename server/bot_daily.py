@@ -84,10 +84,13 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     vad_analyzer = SileroVADAnalyzer(sample_rate=8000, params=vad_params)
 
     # Initialize SoundfileMixer for background audio
+    # Note: Audio file should match transport sample rate (typically 16kHz or 8kHz)
     soundfile_mixer = SoundfileMixer(
         sound_files={"office": "./assets/output-office-ambience-8khz.mp3"},
         default_sound="office",
-        volume=0.3,
+        volume=0.5,   # Increased for audibility
+        loop=True,    # Loop the background audio
+        mixing=True,  # Enable mixing with bot speech
     )
 
     # Get Daily API credentials for transport
@@ -180,9 +183,6 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     @transport.event_handler("on_first_participant_joined")
     async def on_first_participant_joined(transport, participant):
         logger.info(f"Participant joined: {participant['id']}")
-        # Start background ambience audio
-        await soundfile_mixer.play("office", loop=True)
-        logger.info("Started background office ambience")
         # Start the conversation when user joins
         await transport.capture_participant_transcription(participant["id"])
         await flow_manager.initialize()
