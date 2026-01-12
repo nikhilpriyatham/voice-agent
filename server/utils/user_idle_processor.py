@@ -11,7 +11,10 @@ from typing import Awaitable, Callable
 
 from loguru import logger
 from pipecat.frames.frames import (
+    CancelFrame,
+    EndFrame,
     Frame,
+    StartFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
@@ -41,27 +44,38 @@ class UserIdleProcessor(FrameProcessor):
         self._idle_monitoring_active = False
         self._idle_task: asyncio.Task | None = None
         self._idle_event = asyncio.Event()
+        self._started = False
 
-    async def start(self, frame: Frame):
-        """Start the idle monitoring task."""
-        await super().start(frame)
-        self._idle_task = asyncio.create_task(self._idle_task_handler())
+    def _start_idle_task(self):
+        """Start the background idle monitoring task."""
+        if self._idle_task is None or self._idle_task.done():
+            logger.info("UserIdleProcessor: Starting idle monitoring task")
+            self._idle_task = asyncio.create_task(self._idle_task_handler())
 
-    async def stop(self, frame: Frame):
-        """Stop the idle monitoring task."""
-        await super().stop(frame)
-        if self._idle_task:
+    def _stop_idle_task(self):
+        """Stop the background idle monitoring task."""
+        if self._idle_task and not self._idle_task.done():
+            logger.info("UserIdleProcessor: Stopping idle monitoring task")
             self._idle_task.cancel()
-            try:
-                await self._idle_task
-            except asyncio.CancelledError:
-                pass
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
         await self.push_frame(frame, direction)
 
         frame_name = frame.__class__.__name__
+
+        # Start the idle task when pipeline starts
+        if isinstance(frame, StartFrame):
+            logger.info("UserIdleProcessor: Pipeline started, initializing idle task")
+            self._started = True
+            self._start_idle_task()
+            return
+
+        # Stop the idle task when pipeline ends
+        if isinstance(frame, (EndFrame, CancelFrame)):
+            logger.info("UserIdleProcessor: Pipeline ending, stopping idle task")
+            self._stop_idle_task()
+            return
 
         # Start monitoring when bot stops speaking
         if frame_name == "BotStoppedSpeakingFrame":
