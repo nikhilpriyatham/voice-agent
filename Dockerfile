@@ -21,13 +21,8 @@ RUN pip install -r requirements.txt
 # Set working directory to server
 WORKDIR /app/server
 
-# Set environment variables - UVICORN_HOST forces uvicorn to bind to 0.0.0.0
+# Set environment variables - Railway sets PORT dynamically
 ENV HOST=0.0.0.0
-ENV PORT=7860
-ENV UVICORN_HOST=0.0.0.0
-ENV UVICORN_PORT=7860
-
-EXPOSE 7860
 
 # Run bot_runner which manages Daily rooms and spawns bots
 CMD ["python", "bot_runner.py"]
