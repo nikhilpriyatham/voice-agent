@@ -27,5 +27,5 @@ ENV PORT=7860
 
 EXPOSE 7860
 
-# Use our custom run.py that patches uvicorn
-CMD ["python", "run.py"]
+# Run uvicorn directly from CLI with explicit host binding
+CMD ["uvicorn", "run:app", "--host", "0.0.0.0", "--port", "7860"]
