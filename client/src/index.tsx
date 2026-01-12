@@ -2,7 +2,7 @@ import {
   ConsoleTemplate,
   ThemeProvider,
 } from '@pipecat-ai/voice-ui-kit';
-import '@pipecat-ai/voice-ui-kit/dist/style.css';
+import '@pipecat-ai/voice-ui-kit/style.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
