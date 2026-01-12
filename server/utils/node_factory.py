@@ -1,8 +1,6 @@
 """Node factory utilities for creating flow nodes."""
 
-from typing import Any, Callable, Dict, List, Optional, TypedDict
-
-from pipecat_flows import FlowManager
+from typing import Callable, List, TypedDict
 
 
 class NodeFunction(TypedDict):
