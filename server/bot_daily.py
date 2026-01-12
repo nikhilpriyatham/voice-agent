@@ -82,7 +82,7 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
         confidence=0.7,  # Higher threshold to filter out noise
         min_volume=0.5,  # Ignore quiet background sounds
         start_secs=0.2,  # Require sustained speech before interrupting
-        stop_secs=0.7,  # Slightly longer to avoid cutting off mid-word
+        stop_secs=0.4,  # Short stop time to avoid cutting off mid-word
     )
     vad_analyzer = SileroVADAnalyzer(sample_rate=16000, params=vad_params)
 
