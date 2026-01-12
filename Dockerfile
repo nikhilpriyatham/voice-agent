@@ -21,8 +21,12 @@ RUN pip install -r requirements.txt
 # Set working directory to server
 WORKDIR /app/server
 
-# Set environment variables - Railway sets PORT dynamically
+# Set environment variables
 ENV HOST=0.0.0.0
+ENV PORT=8080
+
+# Expose the port Railway will use
+EXPOSE 8080
 
 # Run bot_runner which manages Daily rooms and spawns bots
 CMD ["python", "bot_runner.py"]
