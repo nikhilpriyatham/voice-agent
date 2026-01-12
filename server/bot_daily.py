@@ -180,6 +180,9 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     @transport.event_handler("on_first_participant_joined")
     async def on_first_participant_joined(transport, participant):
         logger.info(f"Participant joined: {participant['id']}")
+        # Start background ambience audio
+        await soundfile_mixer.play("office", loop=True)
+        logger.info("Started background office ambience")
         # Start the conversation when user joins
         await transport.capture_participant_transcription(participant["id"])
         await flow_manager.initialize()
