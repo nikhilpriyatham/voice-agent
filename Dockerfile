@@ -27,10 +27,12 @@ WORKDIR /app/server
 
 # Set environment for Railway - bind to all interfaces
 ENV HOST=0.0.0.0
-ENV PORT=7860
+
+# Railway assigns PORT dynamically, default to 7860 for local
+ENV PORT=${PORT:-7860}
 
 # Expose port for WebRTC
 EXPOSE 7860
 
-# Run the bot with host binding
-CMD ["python", "-m", "pipecat.runner.run", "--host", "0.0.0.0", "--port", "7860", "bot:bot"]
+# Run the bot with host binding - use shell form to expand $PORT
+CMD python -m pipecat.runner.run --host 0.0.0.0 --port ${PORT:-7860} bot:bot
