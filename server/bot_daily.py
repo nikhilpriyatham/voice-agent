@@ -43,13 +43,11 @@ from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
-from pipecat.processors.transcript_processor import TranscriptProcessor
 from pipecat.services.azure.llm import AzureLLMService
 from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.transports.daily.transport import DailyParams, DailyTransport
 from pipecat_flows import FlowManager
-from utils.transcript_handler import TranscriptHandler
 
 # Try to import KrispFilter (requires commercial SDK)
 try:
@@ -91,9 +89,6 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
         default_sound="office",
         volume=0.3,
     )
-
-    # Initialize transcript handler
-    transcript_handler = TranscriptHandler()
 
     # Get Daily API credentials for transport
     daily_api_key = os.getenv("DAILY_API_KEY", "")
@@ -145,19 +140,10 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     context = OpenAILLMContext([])
     context_aggregator = llm.create_context_aggregator(context)
 
-    # Create transcript processor for capturing conversation
-    transcript = TranscriptProcessor()
-
-    # Register transcript event handler
-    @transcript.event_handler("on_transcript_update")
-    async def on_transcript_update(processor, frame):
-        await transcript_handler.on_transcript_update(processor, frame)
-
     pipeline = Pipeline(
         [
             transport.input(),
             stt,
-            transcript,  # Capture transcripts
             context_aggregator.user(),
             llm,
             tts,
@@ -190,7 +176,6 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     flow_manager.state["tts"] = tts
     flow_manager.state["task"] = task
     flow_manager.state["mem0_client"] = mem0_client
-    flow_manager.state["transcript_handler"] = transcript_handler
 
     @transport.event_handler("on_first_participant_joined")
     async def on_first_participant_joined(transport, participant):
