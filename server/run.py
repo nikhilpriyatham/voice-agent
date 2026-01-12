@@ -1,23 +1,15 @@
 """Custom runner script to ensure proper host binding for Railway."""
 
 import os
-import sys
 
-# Set host to 0.0.0.0 before importing pipecat runner
+# Override the default host BEFORE importing pipecat runner
 os.environ["PIPECAT_RUNNER_HOST"] = "0.0.0.0"
-os.environ["PIPECAT_RUNNER_PORT"] = os.environ.get("PORT", "7860")
+
+import pipecat.runner.run as runner
+
+# Monkey-patch the runner_host to force 0.0.0.0
+runner.runner_host = lambda: "0.0.0.0"
+runner.RUNNER_HOST = "0.0.0.0"
 
 if __name__ == "__main__":
-    # Override sys.argv to include host binding
-    sys.argv = [
-        "pipecat.runner.run",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        os.environ.get("PORT", "7860"),
-        "bot:bot",
-    ]
-
-    from pipecat.runner.run import main
-
-    main()
+    runner.main()
