@@ -8,9 +8,8 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'https://voice-agent-production-58c7.up.railway.app',
+        target: 'http://localhost:7860',
         changeOrigin: true,
-        secure: true,
       },
     },
   },

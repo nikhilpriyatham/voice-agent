@@ -4,6 +4,7 @@ import {
 } from '@pipecat-ai/voice-ui-kit';
 // Import styles directly from node_modules
 import '../node_modules/@pipecat-ai/voice-ui-kit/dist/voice-ui-kit.css';
+import './style.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 

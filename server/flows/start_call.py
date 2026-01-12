@@ -5,9 +5,9 @@ from typing import Dict
 
 from loguru import logger
 from pipecat_flows import FlowManager
+from utils.node_factory import create_function_transition, create_node
 
 from flows.utils import handle_flow_error
-from utils.node_factory import create_function_transition, create_node
 
 # Configure logging
 logger = logger.bind(name=__name__)
@@ -19,7 +19,9 @@ async def handle_start_call(args: Dict, result: dict, flow_manager: FlowManager)
     logger.info("Starting call flow")
     patient_name = flow_manager.state.get("patient_name", "the patient")
     device_ordered = flow_manager.state.get("device_ordered", "medical equipment")
-    await flow_manager.set_node("start_call", create_start_call_node(patient_name, device_ordered))
+    await flow_manager.set_node(
+        "start_call", create_start_call_node(patient_name, device_ordered)
+    )
 
 
 def create_start_call_node(patient_name: str, device_ordered: str) -> dict:
@@ -33,11 +35,12 @@ def create_start_call_node(patient_name: str, device_ordered: str) -> dict:
     Returns:
         A node configuration dictionary
     """
-    logger.info(f"Creating start call node for patient: {patient_name}, device: {device_ordered}")
+    logger.info(
+        f"Creating start call node for patient: {patient_name}, device: {device_ordered}"
+    )
 
     # Import here to avoid circular dependency
     from flows.collect_insurance import handle_collect_insurance
-    from flows.end import handle_end_conversation
 
     system_message = f"""# Role
 You are Amanda, a warm and friendly Medical Customer Service Representative at Dasco.
@@ -68,12 +71,14 @@ You are making an outbound call to {patient_name} regarding their {device_ordere
 - Be encouraging: "You're doing great," "Almost there!"
 - Sound genuinely interested and engaged
 
-# Reading Numbers and Codes
-- ALWAYS read alphanumeric codes CHARACTER BY CHARACTER with pauses between
-- Example: "X12345678" → "X... 1... 2... 3... 4... 5... 6... 7... 8"
-- Example: "ABC123" → "A... B... C... 1... 2... 3"
-- For long numbers, group in sets of 3-4: "123-456-7890"
-- Never read numbers as words (don't say "twelve million")
+# Reading Numbers, Codes and Abbreviations
+- For well-known abbreviations (BCBS, UHC, PPO, HMO, etc.), say them naturally as abbreviations
+- Example: "BCBS" → say "B-C-B-S" or "Blue Cross Blue Shield" if you know it
+- For policy/group numbers, read digits in pairs or small groups like a human would
+- Example: "1234567" → "twelve thirty-four, five sixty-seven" or "one-two-three, four-five-six-seven"
+- Example: "X1234" → "X, twelve thirty-four" 
+- For phone numbers: "123-456-7890" → "one-two-three, four-five-six, seven-eight-nine-zero"
+- Read naturally and conversationally - don't be robotic
 
 # Handling Pauses and Incomplete Responses
 - If the user pauses mid-sentence or gives an incomplete response, DO NOT repeat the question

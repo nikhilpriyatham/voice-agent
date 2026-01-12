@@ -39,15 +39,18 @@ from mem0 import MemoryClient
 from pipecat.audio.mixers.soundfile_mixer import SoundfileMixer
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
+from pipecat.frames.frames import EndTaskFrame, TTSSpeakFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
+from pipecat.processors.frameworks.rtvi import RTVIObserver, RTVIProcessor
 from pipecat.services.azure.llm import AzureLLMService
 from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.transports.daily.transport import DailyParams, DailyTransport
 from pipecat_flows import FlowManager
+from utils.user_idle_processor import UserIdleProcessor
 
 # Try to import KrispFilter (requires commercial SDK)
 try:
@@ -74,23 +77,23 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     else:
         logger.warning("MEM0_API_KEY not set, conversation memory disabled")
 
-    # Configure VAD - tuned for short responses like "yes" and "no"
+    # Configure VAD - balanced to ignore noise but catch real speech
     vad_params = VADParams(
-        confidence=0.5,    # Lower threshold to catch quieter speech
-        min_volume=0.4,    # Lower volume threshold for soft responses
-        start_secs=0.1,    # Shorter start time to catch brief "yes/no"
-        stop_secs=0.6,     # Shorter stop time for snappier responses
+        confidence=0.7,  # Higher threshold to filter out noise
+        min_volume=0.5,  # Ignore quiet background sounds
+        start_secs=0.2,  # Require sustained speech before interrupting
+        stop_secs=0.7,  # Slightly longer to avoid cutting off mid-word
     )
     vad_analyzer = SileroVADAnalyzer(sample_rate=16000, params=vad_params)
 
     # Initialize SoundfileMixer for background audio
-    # Note: Audio file should match transport sample rate (typically 16kHz or 8kHz)
+    # Note: Audio file must match Cartesia TTS sample rate (24kHz)
     soundfile_mixer = SoundfileMixer(
-        sound_files={"office": "./assets/output-office-ambience-8khz.mp3"},
+        sound_files={"office": "./assets/office-ambience-24khz-short.mp3"},
         default_sound="office",
-        volume=0.5,   # Increased for audibility
-        loop=True,    # Loop the background audio
-        mixing=True,  # Enable mixing with bot speech
+        volume=0.3,  # Low volume so bot voice is clear
+        loop=True,  # Loop the background audio continuously
+        mixing=True,  # Mix with bot speech (both play together)
     )
 
     # Get Daily API credentials for transport
@@ -143,10 +146,48 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     context = OpenAILLMContext([])
     context_aggregator = llm.create_context_aggregator(context)
 
+    # RTVI processor and observer for real-time transcript display in UI
+    rtvi = RTVIProcessor()
+    rtvi_observer = RTVIObserver(rtvi)
+
+    # User idle callback - prompts user when they're silent too long
+    async def handle_user_idle(processor: UserIdleProcessor, retry_count: int) -> bool:
+        """Handle user idle timeout with escalating prompts."""
+        if retry_count == 1:
+            logger.info("User idle - first prompt")
+            await processor.push_frame(TTSSpeakFrame("Hello... are you still there?"))
+            return True  # Continue monitoring
+        elif retry_count == 2:
+            logger.info("User idle - second prompt")
+            await processor.push_frame(
+                TTSSpeakFrame(
+                    "I haven't heard from you in a while... are you still there?"
+                )
+            )
+            return True  # Continue monitoring
+        else:
+            logger.info("User idle - ending call")
+            await processor.push_frame(
+                TTSSpeakFrame(
+                    "It looks like you might be busy. Feel free to call us back whenever you're ready. Take care!"
+                )
+            )
+            # Give time for the message to play before ending
+            await processor.push_frame(EndTaskFrame())
+            return False  # Stop monitoring
+
+    # Create user idle processor (15 second timeout)
+    user_idle = UserIdleProcessor(
+        callback=handle_user_idle,
+        timeout=15.0,  # 15 seconds of silence triggers prompt
+    )
+
     pipeline = Pipeline(
         [
             transport.input(),
             stt,
+            user_idle,  # Monitor for user silence
+            rtvi,  # Captures transcripts for UI display
             context_aggregator.user(),
             llm,
             tts,
@@ -162,6 +203,7 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
             enable_metrics=True,
             enable_usage_metrics=True,
         ),
+        observers=[rtvi_observer],  # Observer translates events for client
     )
 
     # Initialize FlowManager
@@ -183,6 +225,7 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     @transport.event_handler("on_first_participant_joined")
     async def on_first_participant_joined(transport, participant):
         logger.info(f"Participant joined: {participant['id']}")
+        # Background audio plays automatically via default_sound with loop=True
         # Start the conversation when user joins
         await transport.capture_participant_transcription(participant["id"])
         await flow_manager.initialize()
