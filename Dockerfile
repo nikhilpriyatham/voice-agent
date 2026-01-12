@@ -26,11 +26,12 @@ COPY . .
 WORKDIR /app/server
 
 # Set environment for Railway - bind to all interfaces
-ENV HOST=0.0.0.0
+ENV PIPECAT_RUNNER_HOST=0.0.0.0
+ENV PIPECAT_RUNNER_PORT=7860
 ENV PORT=7860
 
 # Expose port for WebRTC
 EXPOSE 7860
 
-# Run the bot with host binding
-CMD ["python", "bot.py"]
+# Run the custom runner script
+CMD ["python", "run.py"]
