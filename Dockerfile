@@ -1,13 +1,25 @@
-FROM dailyco/pipecat-base:latest
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy requirements and install
-COPY server/requirements.txt requirements.txt
-RUN pip install --no-cache-dir --upgrade -r requirements.txt
+# Install system dependencies for OpenCV and audio processing
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy server files
-COPY server/ .
+# Copy everything first
+COPY . .
+
+# Install dependencies from root requirements.txt (which references server/requirements.txt)
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Set working directory to server
+WORKDIR /app/server
 
 # Set environment variables
 ENV HOST=0.0.0.0
