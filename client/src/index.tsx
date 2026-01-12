@@ -17,6 +17,8 @@ createRoot(document.getElementById('root')!).render(
       <ConsoleTemplate
         transportType="smallwebrtc"
         onConnect={async () => {
+          // This is called for the initial connection setup
+          // The WebRTC offer will be sent to /noop which is proxied to /api/offer
           const response = await fetch('/api/offer', {
             method: 'POST',
             headers: {
@@ -29,6 +31,12 @@ createRoot(document.getElementById('root')!).render(
           });
           return response;
         }}
+        clientOptions={{
+          params: {
+            patient_name: 'John Miller',
+            device_ordered: 'wheelchair',
+          },
+        } as any}
       />
     </ThemeProvider>
   </StrictMode>
