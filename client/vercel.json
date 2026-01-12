@@ -8,10 +8,6 @@
     {
       "source": "/api/(.*)",
       "destination": "https://voice-agent-production-58c7.up.railway.app/api/$1"
-    },
-    {
-      "source": "/noop",
-      "destination": "https://voice-agent-production-58c7.up.railway.app/api/offer"
     }
   ]
 }

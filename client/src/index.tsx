@@ -14,9 +14,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
       <ConsoleTemplate
-        transportType="smallwebrtc"
+        transportType="daily"
         connectParams={{
-          connectionUrl: '/api/offer',
+          endpoint: '/api/connect',
           requestData: {
             patient_name: 'John Miller',
             device_ordered: 'wheelchair',

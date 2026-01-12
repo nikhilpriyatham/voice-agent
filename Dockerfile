@@ -29,5 +29,5 @@ ENV UVICORN_PORT=7860
 
 EXPOSE 7860
 
-# Run pipecat runner with correct arguments for WebRTC transport
-CMD ["python", "-m", "pipecat.runner.run", "--host", "0.0.0.0", "--port", "7860", "-t", "webrtc"]
+# Run bot_runner which manages Daily rooms and spawns bots
+CMD ["python", "bot_runner.py"]
