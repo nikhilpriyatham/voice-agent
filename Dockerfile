@@ -15,5 +15,5 @@ ENV PORT=7860
 
 EXPOSE 7860
 
-# Run with explicit host binding
-CMD ["python", "-m", "pipecat.runner.run", "--host", "0.0.0.0", "--port", "7860", "bot:bot"]
+# Use our custom run.py that patches uvicorn
+CMD ["python", "run.py"]
