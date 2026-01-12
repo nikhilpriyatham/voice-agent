@@ -36,17 +36,29 @@ from dotenv import load_dotenv
 from flows.start_call import create_start_call_node
 from loguru import logger
 from mem0 import MemoryClient
+from pipecat.audio.mixers.soundfile_mixer import SoundfileMixer
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
+from pipecat.processors.transcript_processor import TranscriptProcessor
 from pipecat.services.azure.llm import AzureLLMService
 from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.deepgram.stt import DeepgramSTTService
-from pipecat.transports.services.daily import DailyParams, DailyTransport
+from pipecat.transports.daily.transport import DailyParams, DailyTransport
 from pipecat_flows import FlowManager
+from utils.transcript_handler import TranscriptHandler
+
+# Try to import KrispFilter (requires commercial SDK)
+try:
+    from pipecat.audio.filters.krisp_filter import KrispFilter
+
+    KRISP_AVAILABLE = True
+except Exception:
+    KRISP_AVAILABLE = False
+    logger.warning("KrispFilter not available - noise cancellation disabled")
 
 load_dotenv(override=True)
 
@@ -68,24 +80,49 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     vad_params = VADParams(
         confidence=0.7,
         min_volume=0.6,
-        start_secs=0.3,
+        start_secs=0.2,
         stop_secs=0.8,
     )
-    vad_analyzer = SileroVADAnalyzer(params=vad_params)
+    vad_analyzer = SileroVADAnalyzer(sample_rate=8000, params=vad_params)
 
-    # Create Daily transport
+    # Initialize SoundfileMixer for background audio
+    soundfile_mixer = SoundfileMixer(
+        sound_files={"office": "./assets/output-office-ambience-8khz.mp3"},
+        default_sound="office",
+        volume=0.3,
+    )
+
+    # Initialize transcript handler
+    transcript_handler = TranscriptHandler()
+
+    # Get Daily API credentials for transport
+    daily_api_key = os.getenv("DAILY_API_KEY", "")
+    daily_api_url = os.getenv("DAILY_API_URL", "https://api.daily.co/v1")
+
+    # Create Daily transport with enhanced audio features
+    daily_params = DailyParams(
+        api_key=daily_api_key,
+        api_url=daily_api_url,
+        audio_in_enabled=True,
+        audio_out_enabled=True,
+        video_out_enabled=False,
+        audio_out_mixer=soundfile_mixer,  # Background audio
+        vad_enabled=True,
+        vad_analyzer=vad_analyzer,
+        vad_audio_passthrough=True,  # For transcript handling
+        transcription_enabled=False,  # We use Deepgram directly
+    )
+
+    # Add Krisp noise cancellation if available
+    if KRISP_AVAILABLE:
+        daily_params.audio_in_filter = KrispFilter()
+        logger.info("Krisp noise cancellation enabled")
+
     transport = DailyTransport(
         room_url,
         token,
         "Amanda",  # Bot's display name
-        DailyParams(
-            audio_in_enabled=True,
-            audio_out_enabled=True,
-            video_out_enabled=False,
-            vad_enabled=True,
-            vad_analyzer=vad_analyzer,
-            transcription_enabled=False,  # We use Deepgram directly
-        ),
+        daily_params,
     )
 
     stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
@@ -108,10 +145,19 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     context = OpenAILLMContext([])
     context_aggregator = llm.create_context_aggregator(context)
 
+    # Create transcript processor for capturing conversation
+    transcript = TranscriptProcessor()
+
+    # Register transcript event handler
+    @transcript.event_handler("on_transcript_update")
+    async def on_transcript_update(processor, frame):
+        await transcript_handler.on_transcript_update(processor, frame)
+
     pipeline = Pipeline(
         [
             transport.input(),
             stt,
+            transcript,  # Capture transcripts
             context_aggregator.user(),
             llm,
             tts,
@@ -144,6 +190,7 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     flow_manager.state["tts"] = tts
     flow_manager.state["task"] = task
     flow_manager.state["mem0_client"] = mem0_client
+    flow_manager.state["transcript_handler"] = transcript_handler
 
     @transport.event_handler("on_first_participant_joined")
     async def on_first_participant_joined(transport, participant):
