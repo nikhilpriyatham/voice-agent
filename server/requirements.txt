@@ -3,3 +3,5 @@ aiohttp>=3.9.0
 pipecat-ai-flows>=0.0.16
 loguru>=0.7.2
 mem0ai
+rapidfuzz>=3.0.0
+python-dateutil>=2.8.0

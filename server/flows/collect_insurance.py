@@ -1,10 +1,12 @@
 """Collect insurance flow - Collects insurance details one field at a time."""
 
-from typing import Dict
+from typing import Dict, Optional
 
 from loguru import logger
 from pipecat_flows import FlowManager
+from utils.date_parser import parse_and_format_date
 from utils.node_factory import create_node
+from utils.payer_lookup import PayerLookup
 
 from flows.utils import handle_flow_error
 
@@ -54,9 +56,18 @@ async def handle_collect_policy_number(
     """Handle collecting policy number after DOB."""
     logger.info(f"Collected DOB: {args}")
 
-    # Store the collected data
+    # Store the collected data with date validation
     if "date_of_birth" in args:
-        flow_manager.state["insurance_data"]["date_of_birth"] = args["date_of_birth"]
+        raw_dob = args["date_of_birth"]
+        # Parse and format to mm/dd/yyyy
+        formatted_dob = parse_and_format_date(raw_dob)
+        if formatted_dob:
+            flow_manager.state["insurance_data"]["date_of_birth"] = formatted_dob
+            logger.info(f"DOB formatted: '{raw_dob}' -> '{formatted_dob}'")
+        else:
+            # If parsing fails, store raw value
+            flow_manager.state["insurance_data"]["date_of_birth"] = raw_dob
+            logger.warning(f"Could not parse DOB: '{raw_dob}', storing as-is")
 
     patient_name = flow_manager.state.get("patient_name", "the patient")
     device_ordered = flow_manager.state.get("device_ordered", "medical equipment")
@@ -105,15 +116,121 @@ async def handle_collect_insurance_provider(
 
 
 @handle_flow_error
-async def handle_finish_collection(args: Dict, result: dict, flow_manager: FlowManager):
-    """Handle finishing the insurance collection - all data collected."""
-    logger.info(f"Collected insurance provider: {args}")
+async def handle_lookup_insurance(args: Dict, result: dict, flow_manager: FlowManager):
+    """Handle looking up insurance provider in our database."""
+    logger.info(f"Looking up insurance provider: {args}")
 
-    # Store the final piece of data
+    raw_provider = args.get("insurance_provider", "")
+    payer_lookup: Optional[PayerLookup] = flow_manager.state.get("payer_lookup")
+
+    matched_name = None
+    stedi_id = None
+    payer_id = None
+    match_score = 0.0
+
+    if payer_lookup and raw_provider:
+        # Try to match against known payers
+        best_match = payer_lookup.get_best_match(raw_provider, threshold=70.0)
+        if best_match:
+            matched_name = best_match.payer.display_name
+            stedi_id = best_match.payer.stedi_id
+            payer_id = best_match.payer.primary_payer_id
+            match_score = best_match.score
+            logger.info(
+                f"Insurance provider matched: '{raw_provider}' -> '{matched_name}' (score: {match_score:.1f}%)"
+            )
+
+    # Store lookup results in state for the confirmation node
+    flow_manager.state["pending_insurance"] = {
+        "raw_name": raw_provider,
+        "matched_name": matched_name,
+        "stedi_id": stedi_id,
+        "payer_id": payer_id,
+        "match_score": match_score,
+    }
+
+    patient_name = flow_manager.state.get("patient_name", "the patient")
+    await flow_manager.set_node(
+        "confirm_insurance",
+        create_confirm_insurance_node(patient_name, matched_name, raw_provider),
+    )
+
+
+@handle_flow_error
+async def handle_confirm_insurance(args: Dict, result: dict, flow_manager: FlowManager):
+    """Handle user confirming the matched insurance provider."""
+    logger.info(f"User confirmed insurance: {args}")
+
+    pending = flow_manager.state.get("pending_insurance", {})
+
+    # Store the confirmed insurance data
+    if pending.get("matched_name"):
+        flow_manager.state["insurance_data"]["insurance_provider"] = pending[
+            "matched_name"
+        ]
+        flow_manager.state["insurance_data"]["insurance_provider_stedi_id"] = pending[
+            "stedi_id"
+        ]
+        flow_manager.state["insurance_data"]["insurance_provider_payer_id"] = pending[
+            "payer_id"
+        ]
+        flow_manager.state["insurance_data"]["insurance_provider_match_score"] = (
+            pending["match_score"]
+        )
+    else:
+        # No match was found, use raw name
+        flow_manager.state["insurance_data"]["insurance_provider"] = pending["raw_name"]
+        flow_manager.state["insurance_data"]["insurance_provider_unverified"] = True
+
+    # Clean up pending state
+    del flow_manager.state["pending_insurance"]
+
+    # Log all collected data
+    insurance_data = flow_manager.state.get("insurance_data", {})
+    logger.info(f"All insurance data collected: {insurance_data}")
+
+    # Transition to end conversation
+    from flows.end import handle_end_conversation
+
+    await handle_end_conversation(args, result, flow_manager)
+
+
+@handle_flow_error
+async def handle_reject_insurance_match(
+    args: Dict, result: dict, flow_manager: FlowManager
+):
+    """Handle user rejecting the matched insurance - ask them to clarify."""
+    logger.info(f"User rejected insurance match: {args}")
+
+    # Clear pending and go back to collect insurance
+    if "pending_insurance" in flow_manager.state:
+        del flow_manager.state["pending_insurance"]
+
+    patient_name = flow_manager.state.get("patient_name", "the patient")
+    device_ordered = flow_manager.state.get("device_ordered", "medical equipment")
+
+    # Go back to insurance collection with a clarification prompt
+    await flow_manager.set_node(
+        "collect_insurance_provider",
+        create_collect_insurance_provider_node(
+            patient_name, device_ordered, is_retry=True
+        ),
+    )
+
+
+@handle_flow_error
+async def handle_finish_collection(args: Dict, result: dict, flow_manager: FlowManager):
+    """Handle finishing collection when no database match was found."""
+    logger.info(f"Finishing collection with raw provider: {args}")
+
     if "insurance_provider" in args:
         flow_manager.state["insurance_data"]["insurance_provider"] = args[
             "insurance_provider"
         ]
+        flow_manager.state["insurance_data"]["insurance_provider_unverified"] = True
+        logger.warning(
+            f"Insurance provider stored as unverified: '{args['insurance_provider']}'"
+        )
 
     # Log all collected data
     insurance_data = flow_manager.state.get("insurance_data", {})
@@ -145,7 +262,12 @@ CRITICAL RULE - When they give you a name (e.g., "John Smith"):
 1. You MUST say their name out loud in your response
 2. Say: "Wonderful! So that's John Smith... let me just make sure I got that right. Is that correct?"
 3. NEVER say "So that's..." without the actual name - always include the name!
-4. If they confirm, say "Perfect!" and call save_policy_holder
+
+CRITICAL - WHEN THEY CONFIRM (say "yes", "yeah", "yep", "correct", "that's right", "uh-huh", etc.):
+- Say "Perfect!" and IMMEDIATELY call save_policy_holder with the name
+- Do NOT repeat the confirmation question
+- Do NOT ask again if it's correct
+- Just call the function and move on
 
 The policy holder may be DIFFERENT from {patient_name}. Use what they tell you.
 
@@ -197,14 +319,25 @@ IMPORTANT - If they pause mid-sentence or seem to be thinking:
 - Only re-ask if they explicitly ask you to repeat
 
 Once they provide the COMPLETE date:
-- You MUST repeat back the EXACT date they just told you
-- Confirm warmly: "Okay great... so that's [repeat the EXACT date they said]. Did I get that right?"
-- If they say YES or confirm, respond "Wonderful!" and use the save_dob function with the EXACT date
-- Accept various date formats (month/day/year, spoken dates, etc.)
+- Convert their response to mm/dd/yyyy format for confirmation
+- For example: "June 8th, 1996" becomes "06/08/1996"
+- Confirm: "Okay great... so that's 06/08/1996. Did I get that right?"
+
+CRITICAL - WHEN THEY CONFIRM (say "yes", "yeah", "yep", "correct", "that's right", etc.):
+- Say "Wonderful!" and IMMEDIATELY call save_dob with the date
+- Do NOT repeat the confirmation question
+- Do NOT ask again if it's correct
+- Just call the function and move on
+
+IMPORTANT - Date format conversion examples:
+- "June 8th, 1996" -> save as "06/08/1996"
+- "August 15 1990" -> save as "08/15/1990"
+- "6/8/96" -> save as "06/08/1996"
+- Always use 4-digit years
 
 IMPORTANT - If they CORRECT the date:
-- Acknowledge: "Oh, got it! So [corrected date]... thank you!"
-- IMMEDIATELY use the save_dob function with the CORRECTED date
+- Acknowledge: "Oh, got it! So [corrected date in mm/dd/yyyy]... thank you!"
+- IMMEDIATELY use the save_dob function with the CORRECTED date in mm/dd/yyyy format
 - Do NOT ask for confirmation again after a correction
 """
 
@@ -213,13 +346,13 @@ IMPORTANT - If they CORRECT the date:
             "type": "function",
             "function": {
                 "name": "save_dob",
-                "description": "Save the date of birth and proceed to collect policy number.",
+                "description": "Save the date of birth in mm/dd/yyyy format and proceed to collect policy number.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "date_of_birth": {
                             "type": "string",
-                            "description": "The policy holder's date of birth",
+                            "description": "The policy holder's date of birth in mm/dd/yyyy format (e.g., 06/08/1996)",
                         }
                     },
                     "required": ["date_of_birth"],
@@ -252,7 +385,12 @@ IMPORTANT - If they pause while looking it up or reading:
 
 Once they provide the COMPLETE policy number:
 - Read it back warmly: "Let me just read that back to make sure... [number]. Did I get that right?"
-- If they say YES or confirm, respond "Perfect, thank you!" and use the save_policy_number function
+
+CRITICAL - WHEN THEY CONFIRM (say "yes", "yeah", "yep", "correct", "that's right", etc.):
+- Say "Perfect, thank you!" and IMMEDIATELY call save_policy_number
+- Do NOT repeat the confirmation question
+- Do NOT ask again if it's correct
+- Just call the function and move on
 
 IMPORTANT - When reading back numbers/codes:
 - Read numbers naturally, in pairs or small groups like a human would
@@ -310,8 +448,16 @@ IMPORTANT - If they pause while looking for it:
 
 Once they provide the group number:
 - Confirm warmly: "Okay... so the group number is [number]. Is that right?"
-- If they say YES or confirm, respond "Got it!" and use the save_group_number function
-- If they say they don't have one, respond warmly: "Oh, no problem at all! Not everyone has one on their card..." and use "N/A" or "none"
+
+CRITICAL - WHEN THEY CONFIRM (say "yes", "yeah", "yep", "correct", "that's right", etc.):
+- Say "Got it!" and IMMEDIATELY call save_group_number
+- Do NOT repeat the confirmation question
+- Do NOT ask again if it's correct
+- Just call the function and move on
+
+If they say they don't have one:
+- Respond warmly: "Oh, no problem at all! Not everyone has one on their card..."
+- IMMEDIATELY call save_group_number with "N/A"
 
 IMPORTANT - When reading back numbers/codes:
 - Read numbers naturally, in pairs or small groups like a human would
@@ -353,11 +499,23 @@ IMPORTANT - If they CORRECT the number:
 
 
 def create_collect_insurance_provider_node(
-    patient_name: str, device_ordered: str
+    patient_name: str, device_ordered: str, is_retry: bool = False
 ) -> dict:
     """Create node for collecting insurance provider/company name."""
 
-    task_message = """For this step, collect the name of the insurance provider/company.
+    if is_retry:
+        task_message = """The user said that wasn't their insurance. Ask them to clarify.
+
+Say something like: "Oh, I'm sorry about that! Could you tell me the name of your insurance company again? Maybe spell it out if it's an unusual name?"
+
+Wait for their response and listen carefully.
+
+Once they provide the insurance name:
+- Use the lookup_insurance_provider function with exactly what they said
+- We'll check our database for a match
+"""
+    else:
+        task_message = """For this step, collect the name of the insurance provider/company.
 
 Say something like: "Almost done! You're doing great... last one — what's the name of your insurance company?"
 
@@ -368,30 +526,120 @@ IMPORTANT - If they pause or seem to be thinking:
 - Simply wait or say "Take your time..." 
 - Only re-ask if they explicitly ask you to repeat
 
-Once they provide the COMPLETE insurance provider name:
-- You MUST repeat back the EXACT insurance name they just told you
-- Confirm warmly: "So your insurance is through [repeat the EXACT name they said]... is that right?"
-- If they say YES or confirm, respond enthusiastically "Perfect! That's everything I need!" and use the save_insurance_provider function with the EXACT name
-- Common examples: Blue Cross Blue Shield, Aetna, UnitedHealthcare, Cigna, Humana, Medicare, Medicaid, etc.
+HANDLING INSURANCE NAMES:
+- Common abbreviations: BCBS = Blue Cross Blue Shield, UHC = UnitedHealthcare, etc.
+- If they say just "Blue Cross" or "BCBS", that's sufficient - accept it
+- If they give a partial name that's recognizable, accept it
 
-IMPORTANT - If they CORRECT the insurance name:
-- Acknowledge: "Oh, got it! So it's [corrected name]... thank you for clarifying!"
-- IMMEDIATELY use the save_insurance_provider function with the CORRECTED name
-- Do NOT ask for confirmation again after a correction
+Once they provide the insurance provider name:
+- Say "Let me look that up in our system..." 
+- Use the lookup_insurance_provider function with exactly what they said
+- We'll check our database and confirm the match with them
 """
 
     custom_functions = [
         {
             "type": "function",
             "function": {
-                "name": "save_insurance_provider",
-                "description": "Save the insurance provider name and finish the collection process.",
+                "name": "lookup_insurance_provider",
+                "description": "Look up the insurance provider in our database to verify the name.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "insurance_provider": {
                             "type": "string",
-                            "description": "The name of the insurance company/provider",
+                            "description": "The name of the insurance company/provider as the user said it",
+                        }
+                    },
+                    "required": ["insurance_provider"],
+                },
+                "transition_callback": handle_lookup_insurance,
+            },
+        },
+    ]
+
+    return create_node(
+        task_message=task_message,
+        custom_functions=custom_functions,
+        include_end=True,
+    )
+
+
+def create_confirm_insurance_node(
+    patient_name: str, matched_name: Optional[str], raw_name: str
+) -> dict:
+    """Create node for confirming the matched insurance provider."""
+
+    if matched_name:
+        task_message = f"""We found a match in our database! Confirm with the user.
+
+The user said: "{raw_name}"
+We found in our system: "{matched_name}"
+
+Say something like: "I found {matched_name} in our system — is that the one you meant?"
+
+CRITICAL - WHEN THEY CONFIRM (say "yes", "yeah", "yep", "correct", "that's right", "that's it", etc.):
+- Say "Perfect! That's everything I need!" and IMMEDIATELY call confirm_insurance
+- Do NOT repeat the question or ask again
+- Just call the function and move on
+
+If they say NO or that's not right:
+- Say "Oh, I'm sorry about that!" and IMMEDIATELY call reject_insurance_match
+"""
+    else:
+        task_message = f"""We couldn't find an exact match in our database.
+
+The user said: "{raw_name}"
+
+Say something like: "I don't see {raw_name} in our system, but that's okay! I'll make a note of it and we can verify it on our end. So your insurance is through {raw_name}... is that right?"
+
+CRITICAL - WHEN THEY CONFIRM (say "yes", "yeah", "yep", "correct", "that's right", etc.):
+- IMMEDIATELY call save_unverified_insurance with "{raw_name}"
+- Do NOT repeat the question or ask again
+- Just call the function and move on
+
+If they say NO or want to correct it:
+- IMMEDIATELY call reject_insurance_match
+"""
+
+    custom_functions = [
+        {
+            "type": "function",
+            "function": {
+                "name": "confirm_insurance",
+                "description": "Confirm the matched insurance provider and finish collection.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+                "transition_callback": handle_confirm_insurance,
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "reject_insurance_match",
+                "description": "User says this is NOT their insurance - go back and ask again.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+                "transition_callback": handle_reject_insurance_match,
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "save_unverified_insurance",
+                "description": "Save the insurance name as-is (unverified) when no database match was found.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "insurance_provider": {
+                            "type": "string",
+                            "description": "The insurance name to save",
                         }
                     },
                     "required": ["insurance_provider"],

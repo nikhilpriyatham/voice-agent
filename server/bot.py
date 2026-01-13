@@ -45,6 +45,7 @@ except Exception:
     pass
 
 from dotenv import load_dotenv
+from flows.start_call import create_start_call_node
 from loguru import logger
 from mem0 import MemoryClient
 from pipecat.audio.vad.silero import SileroVADAnalyzer
@@ -61,8 +62,7 @@ from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.network.small_webrtc import SmallWebRTCTransport
 from pipecat_flows import FlowManager
-
-from flows.start_call import create_start_call_node
+from utils.payer_lookup import PayerLookup
 
 load_dotenv(override=True)
 
@@ -143,6 +143,17 @@ async def run_bot(transport: BaseTransport, patient_name: str, device_ordered: s
     async def on_client_connected(transport, client):
         logger.info("Client connected")
 
+        # Initialize payer lookup (RAG) for insurance validation
+        try:
+            payer_lookup = PayerLookup("./stedi_payers_2026-01-13.csv")
+            flow_manager.state["payer_lookup"] = payer_lookup
+            logger.info(
+                f"Loaded {len(payer_lookup.payers)} payers for insurance lookup"
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize payer lookup: {e}")
+            flow_manager.state["payer_lookup"] = None
+
         # Initialize FlowManager and set the initial node
         await flow_manager.initialize()
         await flow_manager.set_node(
@@ -160,7 +171,9 @@ async def run_bot(transport: BaseTransport, patient_name: str, device_ordered: s
                 insurance_data = flow_manager.state.get("insurance_data", {})
 
                 # Get conversation messages from context
-                messages = context.get_messages() if hasattr(context, "get_messages") else []
+                messages = (
+                    context.get_messages() if hasattr(context, "get_messages") else []
+                )
                 conversation_messages = [
                     msg for msg in messages if msg.get("role") in ["user", "assistant"]
                 ]
@@ -200,7 +213,9 @@ async def bot(runner_args: RunnerArguments):
     # Extract patient info from request body or environment variables (with defaults)
     body = getattr(runner_args, "body", None) or {}
     patient_name = body.get("patient_name", os.getenv("PATIENT_NAME", "the patient"))
-    device_ordered = body.get("device_ordered", os.getenv("DEVICE_ORDERED", "medical equipment"))
+    device_ordered = body.get(
+        "device_ordered", os.getenv("DEVICE_ORDERED", "medical equipment")
+    )
 
     # Configure VAD to be more patient - wait for users to finish speaking
     vad_params = VADParams(

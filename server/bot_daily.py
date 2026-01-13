@@ -50,6 +50,7 @@ from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.transports.daily.transport import DailyParams, DailyTransport
 from pipecat_flows import FlowManager
+from utils.payer_lookup import PayerLookup
 from utils.user_idle_processor import UserIdleProcessor
 
 # Try to import KrispFilter (requires commercial SDK)
@@ -225,9 +226,22 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     @transport.event_handler("on_first_participant_joined")
     async def on_first_participant_joined(transport, participant):
         logger.info(f"Participant joined: {participant['id']}")
-        # Background audio plays automatically via default_sound with loop=True
-        # Start the conversation when user joins
+
+        # 1. Initialize payer lookup (RAG) for insurance validation
+        try:
+            payer_lookup = PayerLookup("./stedi_payers_2026-01-13.csv")
+            flow_manager.state["payer_lookup"] = payer_lookup
+            logger.info(
+                f"Loaded {len(payer_lookup.payers)} payers for insurance lookup"
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize payer lookup: {e}")
+            flow_manager.state["payer_lookup"] = None
+
+        # 2. Start transcription capture (audio recording via Daily)
         await transport.capture_participant_transcription(participant["id"])
+
+        # 3. Initialize flow manager and begin conversation
         await flow_manager.initialize()
         await flow_manager.set_node(
             "start_call", create_start_call_node(patient_name, device_ordered)
