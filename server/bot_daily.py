@@ -127,7 +127,13 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
         daily_params,
     )
 
-    stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
+    stt = DeepgramSTTService(
+        api_key=os.getenv("DEEPGRAM_API_KEY"),
+        model="nova-2",  # Best model for diarization
+        language="en-US",
+        smart_format=True,  # Better formatting
+        diarize=True,  # Enable speaker diarization for multi-speaker scenarios
+    )
 
     tts = CartesiaTTSService(
         api_key=os.getenv("CARTESIA_API_KEY"),

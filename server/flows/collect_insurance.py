@@ -129,8 +129,9 @@ async def handle_lookup_insurance(args: Dict, result: dict, flow_manager: FlowMa
     match_score = 0.0
 
     if payer_lookup and raw_provider:
-        # Try to match against known payers
-        best_match = payer_lookup.get_best_match(raw_provider, threshold=70.0)
+        # Try to match against known payers - require 85%+ confidence
+        best_match = payer_lookup.get_best_match(raw_provider, threshold=85.0)
+
         if best_match:
             matched_name = best_match.payer.display_name
             stedi_id = best_match.payer.stedi_id
@@ -139,6 +140,32 @@ async def handle_lookup_insurance(args: Dict, result: dict, flow_manager: FlowMa
             logger.info(
                 f"Insurance provider matched: '{raw_provider}' -> '{matched_name}' (score: {match_score:.1f}%)"
             )
+        else:
+            # Log when we don't find a good match
+            logger.info(f"No match found for '{raw_provider}' with >= 85% confidence")
+
+    # If no good match (< 85%), ask the user to clarify
+    if not matched_name:
+        # Track retry count
+        retry_count = flow_manager.state.get("insurance_retry_count", 0) + 1
+        flow_manager.state["insurance_retry_count"] = retry_count
+
+        logger.info(
+            f"Asking user to clarify insurance name: '{raw_provider}' (retry #{retry_count})"
+        )
+        patient_name = flow_manager.state.get("patient_name", "the patient")
+        device_ordered = flow_manager.state.get("device_ordered", "medical equipment")
+        await flow_manager.set_node(
+            "collect_insurance_provider",
+            create_collect_insurance_provider_node(
+                patient_name,
+                device_ordered,
+                is_retry=True,
+                unclear_name=raw_provider,
+                retry_count=retry_count,
+            ),
+        )
+        return
 
     # Store lookup results in state for the confirmation node
     flow_manager.state["pending_insurance"] = {
@@ -202,9 +229,17 @@ async def handle_reject_insurance_match(
     """Handle user rejecting the matched insurance - ask them to clarify."""
     logger.info(f"User rejected insurance match: {args}")
 
-    # Clear pending and go back to collect insurance
+    # Get the raw name before clearing pending state
+    pending = flow_manager.state.get("pending_insurance", {})
+    raw_name = pending.get("raw_name", "")
+
+    # Clear pending state
     if "pending_insurance" in flow_manager.state:
         del flow_manager.state["pending_insurance"]
+
+    # Track retry count
+    retry_count = flow_manager.state.get("insurance_retry_count", 0) + 1
+    flow_manager.state["insurance_retry_count"] = retry_count
 
     patient_name = flow_manager.state.get("patient_name", "the patient")
     device_ordered = flow_manager.state.get("device_ordered", "medical equipment")
@@ -213,9 +248,36 @@ async def handle_reject_insurance_match(
     await flow_manager.set_node(
         "collect_insurance_provider",
         create_collect_insurance_provider_node(
-            patient_name, device_ordered, is_retry=True
+            patient_name,
+            device_ordered,
+            is_retry=True,
+            unclear_name=raw_name,
+            retry_count=retry_count,
         ),
     )
+
+
+@handle_flow_error
+async def handle_save_unverified_direct(
+    args: Dict, result: dict, flow_manager: FlowManager
+):
+    """Handle directly saving an unverified insurance name (skip lookup)."""
+    logger.info(f"Saving unverified insurance directly: {args}")
+
+    insurance_provider = args.get("insurance_provider", "Unknown")
+
+    flow_manager.state["insurance_data"]["insurance_provider"] = insurance_provider
+    flow_manager.state["insurance_data"]["insurance_provider_unverified"] = True
+    logger.info(f"Insurance provider saved (unverified): '{insurance_provider}'")
+
+    # Log all collected data
+    insurance_data = flow_manager.state.get("insurance_data", {})
+    logger.info(f"All insurance data collected: {insurance_data}")
+
+    # Transition to end conversation
+    from flows.end import handle_end_conversation
+
+    await handle_end_conversation(args, result, flow_manager)
 
 
 @handle_flow_error
@@ -223,14 +285,17 @@ async def handle_finish_collection(args: Dict, result: dict, flow_manager: FlowM
     """Handle finishing collection when no database match was found."""
     logger.info(f"Finishing collection with raw provider: {args}")
 
-    if "insurance_provider" in args:
-        flow_manager.state["insurance_data"]["insurance_provider"] = args[
-            "insurance_provider"
-        ]
-        flow_manager.state["insurance_data"]["insurance_provider_unverified"] = True
-        logger.warning(
-            f"Insurance provider stored as unverified: '{args['insurance_provider']}'"
-        )
+    # Get the raw name from state (pending_insurance) since we don't include it in prompt
+    pending = flow_manager.state.get("pending_insurance", {})
+    raw_name = pending.get("raw_name") or args.get("insurance_provider", "Unknown")
+
+    flow_manager.state["insurance_data"]["insurance_provider"] = raw_name
+    flow_manager.state["insurance_data"]["insurance_provider_unverified"] = True
+    logger.warning(f"Insurance provider stored as unverified: '{raw_name}'")
+
+    # Clean up pending state
+    if "pending_insurance" in flow_manager.state:
+        del flow_manager.state["pending_insurance"]
 
     # Log all collected data
     insurance_data = flow_manager.state.get("insurance_data", {})
@@ -258,7 +323,13 @@ If they pause or give incomplete response (like "It's..." or "The name is..."):
 - Just say "Take your time..." and wait
 - Do NOT repeat the question
 
-CRITICAL RULE - When they give you a name (e.g., "John Smith"):
+HANDLING PLAYFUL/SILLY RESPONSES:
+If they give a silly name (like "Batman", "Superman", "Darth Vader", random words, etc.):
+- Laugh! Say "Ha! That's a good one..." or "Haha, okay..."
+- Then gently ask for real info: "But seriously, what's the name on your insurance card?"
+- Stay warm and playful but redirect
+
+CRITICAL RULE - When they give you a REAL name (e.g., "John Smith"):
 1. You MUST say their name out loud in your response
 2. Say: "Wonderful! So that's John Smith... let me just make sure I got that right. Is that correct?"
 3. NEVER say "So that's..." without the actual name - always include the name!
@@ -317,6 +388,12 @@ IMPORTANT - If they pause mid-sentence or seem to be thinking:
 - DO NOT repeat or rephrase the question
 - Simply say "Take your time..." or "No rush..." and wait
 - Only re-ask if they explicitly ask you to repeat
+
+HANDLING PLAYFUL/SILLY RESPONSES:
+If they give a silly answer (like "the year 3000", "yesterday", random nonsense, etc.):
+- Laugh! Say "Haha! Nice try..." or "Ha! You're funny..."
+- Then gently redirect: "But for real, what's the date of birth on the insurance?"
+- Stay warm and keep it light
 
 Once they provide the COMPLETE date:
 - Convert their response to mm/dd/yyyy format for confirmation
@@ -378,12 +455,25 @@ Say something like: "Alright... now I'll need the policy number. Take your time 
 
 Wait for their response.
 
+CRITICAL - HANDLING LETTER-BY-LETTER SPELLING:
+If they're spelling it out one letter/number at a time (e.g., "X", then "1", then "2"):
+- Say "Mmhmm..." or "Got it..." after each piece and WAIT for more
+- Do NOT try to confirm or save after just one letter
+- Keep listening until they indicate they're done (pause, say "that's it", etc.)
+- Collect ALL the pieces before reading back the full number
+
+HANDLING PLAYFUL/SILLY RESPONSES:
+If they give a silly answer (like "a million", "12345678910", "my phone number", random words, etc.):
+- Laugh! Say "Haha! I wish it was that easy..." or "Ha! Good one..."
+- Then redirect: "But what's the actual policy number on your card?"
+- Stay playful but get the real info
+
 IMPORTANT - If they pause while looking it up or reading:
 - DO NOT repeat the question or prompt them again
 - Stay silent or just say "Mmhmm..." and wait patiently
 - Only speak if they ask you to repeat or seem confused
 
-Once they provide the COMPLETE policy number:
+Once they provide the COMPLETE policy number (multiple characters, or they indicate they're done):
 - Read it back warmly: "Let me just read that back to make sure... [number]. Did I get that right?"
 
 CRITICAL - WHEN THEY CONFIRM (say "yes", "yeah", "yep", "correct", "that's right", etc.):
@@ -441,12 +531,25 @@ Say something like: "Great! And the group number? That should be on there too...
 
 Wait for their response.
 
+CRITICAL - HANDLING LETTER-BY-LETTER SPELLING:
+If they're spelling it out one letter/number at a time (e.g., "G", then "R", then "P"):
+- Say "Mmhmm..." or "Got it..." after each piece and WAIT for more
+- Do NOT try to confirm or save after just one letter
+- Keep listening until they indicate they're done (pause, say "that's it", etc.)
+- Collect ALL the pieces before reading back the full number
+
+HANDLING PLAYFUL/SILLY RESPONSES:
+If they give a silly answer (like random words, jokes, nonsense):
+- Laugh! Say "Haha! Okay okay..." or "Ha! You're keeping me entertained..."
+- Then redirect: "But is there a group number on your card, or no?"
+- Stay warm and playful
+
 IMPORTANT - If they pause while looking for it:
 - DO NOT repeat the question
 - Stay silent or say "Take your time..." and wait
 - Only re-ask if they explicitly ask you to repeat
 
-Once they provide the group number:
+Once they provide the COMPLETE group number (multiple characters, or they indicate they're done):
 - Confirm warmly: "Okay... so the group number is [number]. Is that right?"
 
 CRITICAL - WHEN THEY CONFIRM (say "yes", "yeah", "yep", "correct", "that's right", etc.):
@@ -499,20 +602,36 @@ IMPORTANT - If they CORRECT the number:
 
 
 def create_collect_insurance_provider_node(
-    patient_name: str, device_ordered: str, is_retry: bool = False
+    patient_name: str,
+    device_ordered: str,
+    is_retry: bool = False,
+    unclear_name: str = "",
+    retry_count: int = 0,
 ) -> dict:
     """Create node for collecting insurance provider/company name."""
 
-    if is_retry:
-        task_message = """The user said that wasn't their insurance. Ask them to clarify.
+    if is_retry and retry_count >= 1:
+        # After 1 failed attempt, offer to just note it down
+        task_message = """We've tried but can't find their insurance in our system. Offer to just note it down.
 
-Say something like: "Oh, I'm sorry about that! Could you tell me the name of your insurance company again? Maybe spell it out if it's an unusual name?"
+Say something like: "Hmm, it's not coming up in our system... but that's totally okay! It might just not be listed yet. I can take a note of exactly what it says on your card — what's the name of your insurance company exactly as it appears?"
+
+Wait for their response.
+
+Once they provide the name:
+- Say "Perfect, I've got that noted down! We'll verify it on our end."
+- Use the save_unverified_insurance function to save it (no need to look it up again)
+"""
+    elif is_retry:
+        task_message = """We couldn't find that insurance in our system. Ask them to clarify.
+
+Say something like: "Hmm, I'm not finding that one... could you tell me the exact name as it appears on your insurance card?"
 
 Wait for their response and listen carefully.
 
 Once they provide the insurance name:
+- Say "Let me check that..." 
 - Use the lookup_insurance_provider function with exactly what they said
-- We'll check our database for a match
 """
     else:
         task_message = """For this step, collect the name of the insurance provider/company.
@@ -525,6 +644,12 @@ IMPORTANT - If they pause or seem to be thinking:
 - DO NOT repeat the question
 - Simply wait or say "Take your time..." 
 - Only re-ask if they explicitly ask you to repeat
+
+HANDLING PLAYFUL/SILLY RESPONSES:
+If they give a silly or fake insurance name (like random words, jokes, made-up names):
+- Laugh! Say "Haha! That would be a fun insurance company..." or "Ha! I don't think we have that one..."
+- Then redirect warmly: "But really, what insurance company is it? Should be on your card."
+- Stay playful but get the real info
 
 HANDLING INSURANCE NAMES:
 - Common abbreviations: BCBS = Blue Cross Blue Shield, UHC = UnitedHealthcare, etc.
@@ -558,6 +683,29 @@ Once they provide the insurance provider name:
         },
     ]
 
+    # Add save_unverified option for retry scenarios
+    if is_retry and retry_count >= 1:
+        custom_functions.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "save_unverified_insurance",
+                    "description": "Save the insurance name as-is when we can't find it in our system. We'll verify it later.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "insurance_provider": {
+                                "type": "string",
+                                "description": "The exact insurance name as it appears on their card",
+                            }
+                        },
+                        "required": ["insurance_provider"],
+                    },
+                    "transition_callback": handle_save_unverified_direct,
+                },
+            }
+        )
+
     return create_node(
         task_message=task_message,
         custom_functions=custom_functions,
@@ -570,13 +718,16 @@ def create_confirm_insurance_node(
 ) -> dict:
     """Create node for confirming the matched insurance provider."""
 
+    # Note: We intentionally do NOT include raw_name in the prompt to avoid
+    # triggering content filters with unusual user input. The matched_name
+    # from our database is safe to include.
+
     if matched_name:
         task_message = f"""We found a match in our database! Confirm with the user.
 
-The user said: "{raw_name}"
-We found in our system: "{matched_name}"
+We matched their insurance to: "{matched_name}"
 
-Say something like: "I found {matched_name} in our system — is that the one you meant?"
+Say exactly: "So that's {matched_name}... did I get that right?"
 
 CRITICAL - WHEN THEY CONFIRM (say "yes", "yeah", "yep", "correct", "that's right", "that's it", etc.):
 - Say "Perfect! That's everything I need!" and IMMEDIATELY call confirm_insurance
@@ -587,14 +738,12 @@ If they say NO or that's not right:
 - Say "Oh, I'm sorry about that!" and IMMEDIATELY call reject_insurance_match
 """
     else:
-        task_message = f"""We couldn't find an exact match in our database.
+        task_message = """We couldn't find an exact match in our database for their insurance.
 
-The user said: "{raw_name}"
-
-Say something like: "I don't see {raw_name} in our system, but that's okay! I'll make a note of it and we can verify it on our end. So your insurance is through {raw_name}... is that right?"
+Say exactly: "I don't see that one in our system, but that's okay! I'll make a note of it and we can verify it on our end. Is that the correct name of your insurance company?"
 
 CRITICAL - WHEN THEY CONFIRM (say "yes", "yeah", "yep", "correct", "that's right", etc.):
-- IMMEDIATELY call save_unverified_insurance with "{raw_name}"
+- IMMEDIATELY call save_unverified_insurance (no parameters needed)
 - Do NOT repeat the question or ask again
 - Just call the function and move on
 
@@ -633,16 +782,11 @@ If they say NO or want to correct it:
             "type": "function",
             "function": {
                 "name": "save_unverified_insurance",
-                "description": "Save the insurance name as-is (unverified) when no database match was found.",
+                "description": "Save the insurance name as-is (unverified) when no database match was found. The name is retrieved from the previous lookup.",
                 "parameters": {
                     "type": "object",
-                    "properties": {
-                        "insurance_provider": {
-                            "type": "string",
-                            "description": "The insurance name to save",
-                        }
-                    },
-                    "required": ["insurance_provider"],
+                    "properties": {},
+                    "required": [],
                 },
                 "transition_callback": handle_finish_collection,
             },

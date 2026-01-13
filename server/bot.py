@@ -78,7 +78,13 @@ async def run_bot(transport: BaseTransport, patient_name: str, device_ordered: s
     else:
         logger.warning("MEM0_API_KEY not set, conversation memory disabled")
 
-    stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
+    stt = DeepgramSTTService(
+        api_key=os.getenv("DEEPGRAM_API_KEY"),
+        model="nova-2",  # Best model for diarization
+        language="en-US",
+        smart_format=True,  # Better formatting
+        diarize=True,  # Enable speaker diarization for multi-speaker scenarios
+    )
 
     tts = CartesiaTTSService(
         api_key=os.getenv("CARTESIA_API_KEY"),

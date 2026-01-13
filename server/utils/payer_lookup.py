@@ -82,8 +82,18 @@ class PayerLookup:
                             if name_lower:
                                 self._name_to_payer[name_lower] = payer
 
+            # Build separate index for display names only (higher priority matching)
+            self._display_name_to_payer: dict[str, Payer] = {}
+            for payer in self.payers:
+                if payer.display_name:
+                    self._display_name_to_payer[payer.display_name.lower().strip()] = (
+                        payer
+                    )
+
             logger.info(f"Loaded {len(self.payers)} payers from {self.csv_path}")
-            logger.info(f"Indexed {len(self._name_to_payer)} searchable names")
+            logger.info(
+                f"Indexed {len(self._name_to_payer)} searchable names, {len(self._display_name_to_payer)} display names"
+            )
 
         except Exception as e:
             logger.error(f"Failed to load payers CSV: {e}")
@@ -121,6 +131,9 @@ class PayerLookup:
         """
         Search for payers matching the query using fuzzy matching.
 
+        IMPORTANT: Only matches against display_name to avoid alias contamination
+        (e.g., "Aetna" alias on "Innovation Health" causing wrong matches).
+
         Args:
             query: The insurance name to search for
             top_k: Maximum number of results to return
@@ -129,40 +142,39 @@ class PayerLookup:
         Returns:
             List of PayerMatch objects sorted by score (highest first)
         """
-        if not query or not self._name_to_payer:
+        if not query or not self._display_name_to_payer:
             return []
 
         query_lower = query.lower().strip()
 
-        # First check for exact match
-        if query_lower in self._name_to_payer:
-            payer = self._name_to_payer[query_lower]
+        # First check for exact match on display name
+        if query_lower in self._display_name_to_payer:
+            payer = self._display_name_to_payer[query_lower]
             return [
                 PayerMatch(payer=payer, score=100.0, matched_name=payer.display_name)
             ]
 
-        # Fuzzy match against all indexed names
-        all_names = list(self._name_to_payer.keys())
+        # Fuzzy match ONLY against display names (NOT aliases)
+        # This prevents cross-contamination from aliases like "Aetna" on "Innovation Health"
+        display_names = list(self._display_name_to_payer.keys())
 
-        # Use rapidfuzz for fast fuzzy matching
+        # Use fuzz.ratio for stricter matching (requires more of the string to match)
         results = process.extract(
             query_lower,
-            all_names,
-            scorer=fuzz.WRatio,  # Weighted ratio handles partial matches well
-            limit=top_k * 2,  # Get extra to filter duplicates
+            display_names,
+            scorer=fuzz.ratio,  # Stricter than WRatio - better for insurance names
+            limit=top_k,
         )
 
-        # Build matches, deduplicating by payer
-        seen_payers = set()
+        # Build matches
         matches = []
 
         for matched_name, score, _ in results:
             if score < min_score:
                 continue
 
-            payer = self._name_to_payer.get(matched_name)
-            if payer and payer.stedi_id not in seen_payers:
-                seen_payers.add(payer.stedi_id)
+            payer = self._display_name_to_payer.get(matched_name)
+            if payer:
                 matches.append(
                     PayerMatch(
                         payer=payer,
@@ -170,9 +182,6 @@ class PayerLookup:
                         matched_name=payer.display_name,
                     )
                 )
-
-                if len(matches) >= top_k:
-                    break
 
         logger.debug(f"Search '{query}' found {len(matches)} matches")
         return matches
