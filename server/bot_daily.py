@@ -244,13 +244,35 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
             logger.error(f"Failed to initialize payer lookup: {e}")
             flow_manager.state["payer_lookup"] = None
 
-        # 2. Start transcription capture (audio recording via Daily)
+        # 2. Retrieve past conversation history from Mem0 for personalization
+        past_context = None
+        if mem0_client:
+            try:
+                user_id = patient_name.lower().replace(" ", "_")
+                memories = mem0_client.search(
+                    query=f"insurance verification for {patient_name}",
+                    user_id=user_id,
+                    limit=3,
+                )
+                if memories and len(memories) > 0:
+                    past_context = "\n".join(
+                        [m.get("memory", "") for m in memories if m.get("memory")]
+                    )
+                    logger.info(
+                        f"Retrieved {len(memories)} past memories for {patient_name}"
+                    )
+                    flow_manager.state["past_context"] = past_context
+            except Exception as e:
+                logger.warning(f"Failed to retrieve Mem0 memories: {e}")
+
+        # 3. Start transcription capture (audio recording via Daily)
         await transport.capture_participant_transcription(participant["id"])
 
-        # 3. Initialize flow manager and begin conversation
+        # 4. Initialize flow manager and begin conversation
         await flow_manager.initialize()
         await flow_manager.set_node(
-            "start_call", create_start_call_node(patient_name, device_ordered)
+            "start_call",
+            create_start_call_node(patient_name, device_ordered, past_context),
         )
 
     @transport.event_handler("on_participant_left")
