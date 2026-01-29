@@ -38,9 +38,12 @@ async def handle_collect_dob(args: Dict, result: dict, flow_manager: FlowManager
 
     # Store the collected data
     if "policy_holder_name" in args:
-        flow_manager.state["insurance_data"]["policy_holder_name"] = args[
-            "policy_holder_name"
-        ]
+        policy_holder_name = args["policy_holder_name"]
+        flow_manager.state["insurance_data"]["policy_holder_name"] = policy_holder_name
+        # Update the patient_name in state to use the name they provided
+        # This ensures we address them by their actual name for the rest of the call
+        flow_manager.state["patient_name"] = policy_holder_name
+        logger.info(f"Updated patient_name to: {policy_holder_name}")
 
     patient_name = flow_manager.state.get("patient_name", "the patient")
     device_ordered = flow_manager.state.get("device_ordered", "medical equipment")
