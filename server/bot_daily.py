@@ -140,7 +140,7 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     # Supports SSML tags: <break time="Xms"/>, <emotion value="X"/>, [laughter]
     tts = CartesiaTTSService(
         api_key=os.getenv("CARTESIA_API_KEY"),
-        voice_id="6ccbfb76-1fc6-48f7-b71d-91ac6298247b",  # Tessa - emotive voice
+        voice_id="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",  # Cheerful and friendly voice
         voice_speed=1.1,
         voice_volume=1.0,
     )
