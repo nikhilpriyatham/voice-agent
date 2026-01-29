@@ -6,9 +6,9 @@ from loguru import logger
 from pipecat.frames.frames import EndTaskFrame
 from pipecat.processors.frame_processor import FrameDirection
 from pipecat_flows import FlowManager
+from utils.node_factory import NodeFunction, create_node
 
 from flows.utils import handle_flow_error
-from utils.node_factory import NodeFunction, create_node
 
 # Configure logging
 logger = logger.bind(name=__name__)
@@ -55,10 +55,14 @@ def create_wrap_up_node(
     """
     # Use first name only for more personal touch
     first_name = (
-        patient_name.split()[0] if patient_name and patient_name != "the patient" else "there"
+        patient_name.split()[0]
+        if patient_name and patient_name != "the patient"
+        else "there"
     )
 
-    logger.info(f"Creating wrap up node for {first_name}, has_insurance_data: {has_insurance_data}")
+    logger.info(
+        f"Creating wrap up node for {first_name}, has_insurance_data: {has_insurance_data}"
+    )
 
     if has_insurance_data:
         task_message = f"""For this step, wrap up the conversation with {first_name} after successfully collecting their insurance information.
@@ -70,9 +74,11 @@ Follow this process:
 
 3. Ask if they have questions: "Is there anything else I can help you with today?"
 
-4. If they have no other questions, give a warm and genuine goodbye:
-   "Wonderful! Well... thank you again, {first_name}. It was so nice chatting with you! Have a great rest of your day, and please don't hesitate to call us if you have any questions. Take care!"
-   Then use the end_task function.
+4. CRITICAL - When they say "no", "I'm good", "that's all", "nothing else", etc.:
+   - You MUST say a warm goodbye OUT LOUD before ending
+   - Say: "Wonderful! Well... thank you again, {first_name}. It was so nice chatting with you! Have a great rest of your day, and please don't hesitate to call us if you have any questions. Take care!"
+   - ONLY AFTER saying this goodbye message, call the end_task function
+   - NEVER call end_task without saying goodbye first!
 
 5. If they have questions about the {device_ordered} order or insurance, answer warmly and helpfully, then offer the goodbye again.
 
@@ -88,9 +94,11 @@ Follow this process:
 
 3. If yes, acknowledge cheerfully: "Perfect! We'll definitely reach out again soon. Is this still the best number to reach you at?"
 
-4. Give a warm and friendly goodbye:
-   "Alright, {first_name}... well, thank you so much for your time today! Have a wonderful day, and we'll be in touch soon. Take care!"
-   Then use the end_task function.
+4. CRITICAL - When ready to end the call:
+   - You MUST say a warm goodbye OUT LOUD before ending
+   - Say: "Alright, {first_name}... well, thank you so much for your time today! Have a wonderful day, and we'll be in touch soon. Take care!"
+   - ONLY AFTER saying this goodbye message, call the end_task function
+   - NEVER call end_task without saying goodbye first!
 
 5. If they want to proceed now, respond enthusiastically: "Oh, that's great! Let's do it now then..." but note that this node doesn't have that transition - just end politely and let them know we'll call back.
 """
@@ -100,7 +108,7 @@ Follow this process:
             "type": "function",
             "function": {
                 "name": "end_task",
-                "description": "End the conversation and hang up the call. Use this after saying goodbye.",
+                "description": "End the conversation and hang up the call. IMPORTANT: Only call this AFTER you have said a complete goodbye message out loud. Never call this function without first saying 'Take care!' or similar farewell.",
                 "parameters": {
                     "type": "object",
                     "properties": {},

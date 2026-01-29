@@ -12,7 +12,7 @@ state management and transitions between different conversation nodes.
 
 Required AI services:
 - Deepgram (Speech-to-Text)
-- Azure OpenAI (LLM)
+- OpenAI (LLM)
 - Cartesia (Text-to-Speech)
 
 The example connects between client and server using a P2P WebRTC connection.
@@ -56,9 +56,9 @@ from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.processors.frameworks.rtvi import RTVIConfig, RTVIObserver, RTVIProcessor
 from pipecat.runner.types import RunnerArguments
-from pipecat.services.azure.llm import AzureLLMService
 from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.deepgram.stt import DeepgramSTTService
+from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.network.small_webrtc import SmallWebRTCTransport
 from pipecat_flows import FlowManager
@@ -93,11 +93,9 @@ async def run_bot(transport: BaseTransport, patient_name: str, device_ordered: s
         voice_volume=1.0,
     )
 
-    llm = AzureLLMService(
-        api_key=os.getenv("OPENAI_AZURE_GPT41_API_KEY"),
-        endpoint=os.getenv("OPENAI_AZURE_GPT41_ENDPOINT"),
-        model=os.getenv("OPENAI_AZURE_MODEL", "gpt-4o-mini"),
-        api_version=os.getenv("OPENAI_AZURE_GPT41_API_VERSION", "2024-12-01-preview"),
+    llm = OpenAILLMService(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        model=os.getenv("OPENAI_MODEL", "gpt-4o"),  # Latest model
     )
 
     # Initial context - FlowManager will manage the conversation flow

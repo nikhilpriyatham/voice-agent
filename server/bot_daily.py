@@ -45,9 +45,9 @@ from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.processors.frameworks.rtvi import RTVIObserver, RTVIProcessor
-from pipecat.services.azure.llm import AzureLLMService
 from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.deepgram.stt import DeepgramSTTService
+from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.transports.daily.transport import DailyParams, DailyTransport
 from pipecat_flows import FlowManager
 from utils.payer_lookup import PayerLookup
@@ -142,11 +142,9 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
         voice_volume=1.0,
     )
 
-    llm = AzureLLMService(
-        api_key=os.getenv("OPENAI_AZURE_GPT41_API_KEY"),
-        endpoint=os.getenv("OPENAI_AZURE_GPT41_ENDPOINT"),
-        model=os.getenv("OPENAI_AZURE_MODEL", "gpt-4o-mini"),
-        api_version=os.getenv("OPENAI_AZURE_GPT41_API_VERSION", "2024-12-01-preview"),
+    llm = OpenAILLMService(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        model=os.getenv("OPENAI_MODEL", "gpt-4o"),  # Latest model
     )
 
     # Initial context
