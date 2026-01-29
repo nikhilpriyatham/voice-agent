@@ -44,6 +44,7 @@ from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
+from pipecat.processors.frame_processor import FrameDirection
 from pipecat.processors.frameworks.rtvi import RTVIObserver, RTVIProcessor
 from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.deepgram.stt import DeepgramSTTService
@@ -179,8 +180,10 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
                     "It looks like you might be busy. Feel free to call us back whenever you're ready. Take care!"
                 )
             )
-            # Give time for the message to play before ending
-            await processor.push_frame(EndTaskFrame())
+            # Wait for the goodbye message to play before ending
+            await asyncio.sleep(5)
+            # Push EndTaskFrame upstream to properly end the call
+            await processor.push_frame(EndTaskFrame(), FrameDirection.UPSTREAM)
             return False  # Stop monitoring
 
     # Create user idle processor (15 second timeout)

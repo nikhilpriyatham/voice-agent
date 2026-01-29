@@ -318,23 +318,23 @@ def create_collect_policy_holder_node(patient_name: str, device_ordered: str) ->
 
     task_message = f"""Collect the insurance policy holder's name from {patient_name}.
 
-Ask: "<emotion value="curious"/>Great! <break time="200ms"/> So first things first. <break time="200ms"/> Could you tell me the name of the policy holder on your insurance?"
+Ask: "Great! So first things first... could you tell me the name of the policy holder on your insurance?"
 
 Wait for their response.
 
 If they pause or give incomplete response (like "It's..." or "The name is..."):
-- Just say "<emotion value="calm"/>Take your time..." and wait
+- Just say "Take your time..." and wait
 - Do NOT repeat the question
 
 HANDLING PLAYFUL/SILLY RESPONSES:
 If they give a silly name (like "Batman", "Superman", "Darth Vader", random words, etc.):
 - Respond with [laughter]! Say "[laughter] Oh, that's a good one!" or "[laughter] Okay, I see you..."
-- Then gently ask for real info: "<break time="200ms"/> But seriously, what's the name on your insurance card?"
+- Then gently ask for real info: "But seriously, what's the name on your insurance card?"
 - Stay warm and playful but redirect
 
 CRITICAL RULE - When they give you a REAL name (e.g., "John Smith"):
 1. Say their name out loud briefly and IMMEDIATELY save
-2. Say: "<emotion value="excited"/>Got it, [NAME]!" and IMMEDIATELY call save_policy_holder
+2. Say: "Got it, [NAME]!" and IMMEDIATELY call save_policy_holder
 3. Do NOT ask for confirmation - just move on
 
 The policy holder may be DIFFERENT from {patient_name}. Use what they tell you.
@@ -373,24 +373,24 @@ def create_collect_dob_node(patient_name: str, device_ordered: str) -> dict:
 
     task_message = """For this step, collect the policy holder's date of birth.
 
-Say something like: "<emotion value="excited"/>Perfect, got it! <break time="300ms"/> And what's the policy holder's date of birth?"
+Say something like: "Perfect, got it! And... what's the policy holder's date of birth?"
 
 Wait for their response. Listen carefully to EXACTLY what date they say.
 
 IMPORTANT - If they pause mid-sentence or seem to be thinking:
 - DO NOT repeat or rephrase the question
-- Simply say "<emotion value="calm"/>Take your time..." and wait
+- Simply say "Take your time..." and wait
 - Only re-ask if they explicitly ask you to repeat
 
 HANDLING PLAYFUL/SILLY RESPONSES:
 If they give a silly answer (like "the year 3000", "yesterday", random nonsense, etc.):
 - Respond with [laughter]! Say "[laughter] Oh, nice try!" or "[laughter] You're funny..."
-- Then gently redirect: "<break time="200ms"/> But for real, what's the date of birth on the insurance?"
+- Then gently redirect: "But for real, what's the date of birth on the insurance?"
 - Stay warm and keep it light
 
 Once they provide the COMPLETE date:
 - Convert their response to mm/dd/yyyy format internally
-- Say "<emotion value="excited"/>Got it!" and IMMEDIATELY call save_dob with the date
+- Say "Got it!" and IMMEDIATELY call save_dob with the date
 - Do NOT ask for confirmation - just move on
 
 IMPORTANT - Date format conversion examples:
@@ -433,7 +433,7 @@ def create_collect_policy_number_node(patient_name: str, device_ordered: str) ->
 
     task_message = """For this step, collect the insurance policy number.
 
-Say something like: "Alright. <break time="300ms"/> Now I'll need the policy number. <break time="200ms"/> Take your time. <break time="200ms"/> It should be on your insurance card."
+Say something like: "Alright... now I'll need the policy number. Take your time, it should be on your insurance card."
 
 Wait for their response.
 
@@ -447,14 +447,14 @@ If they're spelling it out one letter/number at a time (e.g., "X", then "1", the
 HANDLING PLAYFUL/SILLY RESPONSES:
 If they give a silly answer (like "a million", "12345678910", "my phone number", random words, etc.):
 - Respond with [laughter]! Say "[laughter] Oh, I wish it was that easy!" or "[laughter] Good one..."
-- Then redirect: "<break time="200ms"/> But what's the actual policy number on your card?"
+- Then redirect: "But what's the actual policy number on your card?"
 - Stay playful but get the real info
 
 HANDLING FRUSTRATION (sighing, "ugh", "this is so long", impatient tone):
-- Use <emotion value="sympathetic"/> and acknowledge: "I know. <break time="200ms"/> Insurance cards can be a maze of numbers."
-- Offer help: "It's usually the longest number on there. <break time="200ms"/> Often labeled Member ID or Policy Number."
+- Acknowledge warmly: "I know... insurance cards can be a maze of numbers."
+- Offer help: "It's usually the longest number on there, often labeled Member ID or Policy Number."
 - Reassure: "We're getting close to the end, I promise!"
-- Be patient: "<emotion value="calm"/>No rush. <break time="200ms"/> Take your time finding it."
+- Be patient: "No rush... take your time finding it."
 
 IMPORTANT - If they pause while looking it up or reading:
 - DO NOT repeat the question or prompt them again
@@ -462,7 +462,7 @@ IMPORTANT - If they pause while looking it up or reading:
 - Only speak if they ask you to repeat or seem confused
 
 Once they provide the COMPLETE policy number (multiple characters, or they indicate they're done):
-- Say "<emotion value="excited"/>Got it!" and IMMEDIATELY call save_policy_number
+- Say "Got it!" and IMMEDIATELY call save_policy_number
 - Do NOT ask for confirmation - just move on
 """
 
@@ -499,7 +499,7 @@ def create_collect_group_number_node(patient_name: str, device_ordered: str) -> 
 
     task_message = """For this step, collect the insurance group number.
 
-Say something like: "<emotion value="excited"/>Great! <break time="200ms"/> And the group number? <break time="200ms"/> That should be on there too. <break time="200ms"/> But no worries if you don't have one!"
+Say something like: "Great! And the group number? That should be on there too... but no worries if you don't have one!"
 
 Wait for their response.
 
@@ -513,26 +513,26 @@ If they're spelling it out one letter/number at a time (e.g., "G", then "R", the
 HANDLING PLAYFUL/SILLY/FLIRTY RESPONSES:
 If they give a silly answer, make jokes, flirt, or go off-topic (like "I want to see you", random words, etc.):
 - Respond with [laughter]! Say "[laughter] You're too sweet!" or "[laughter] You're keeping me entertained..."
-- Then redirect firmly: "<break time="200ms"/> But back to business. <break time="200ms"/> Is there a group number on your card, or no?"
+- Then redirect firmly: "But back to business... is there a group number on your card, or no?"
 - If they say no after being redirected, call save_group_number with "N/A" immediately
 - Stay warm but keep the conversation moving forward
 
 HANDLING CONFUSION ("what's a group number?", "I don't see it", uncertain tone):
-- Use <emotion value="calm"/> and help them: "No worries! <break time="200ms"/> It might say Group or GRP on your card. <break time="200ms"/> Sometimes it's near the policy number."
-- Reassure: "If you don't see one, that's totally fine! <break time="200ms"/> Not all cards have it."
-- Be patient: "<emotion value="calm"/>Take your time looking. <break time="200ms"/> It's usually a shorter number than the policy number."
+- Help them: "No worries! It might say Group or GRP on your card... sometimes it's near the policy number."
+- Reassure: "If you don't see one, that's totally fine! Not all cards have it."
+- Be patient: "Take your time looking... it's usually a shorter number than the policy number."
 
 IMPORTANT - If they pause while looking for it:
 - DO NOT repeat the question
-- Stay silent or say "<emotion value="calm"/>Take your time..." and wait
+- Stay silent or say "Take your time..." and wait
 - Only re-ask if they explicitly ask you to repeat
 
 Once they provide the COMPLETE group number (multiple characters, or they indicate they're done):
-- Say "<emotion value="excited"/>Got it!" and IMMEDIATELY call save_group_number
+- Say "Got it!" and IMMEDIATELY call save_group_number
 - Do NOT ask for confirmation - just move on
 
 CRITICAL - If they say they DON'T HAVE a group number (e.g., "I don't have one", "there's no group number", "I don't see one", "no", "nope"):
-- Say something brief like: "<emotion value="calm"/>No problem at all!"
+- Say something brief like: "No problem at all!"
 - You MUST call save_group_number with "N/A" IN THE SAME RESPONSE - do not wait for another turn
 - The ONLY way to proceed is by calling save_group_number - there is no other transition
 """
@@ -578,18 +578,18 @@ def create_collect_insurance_provider_node(
         # After 1 failed attempt, offer to just note it down
         task_message = """We've tried but can't find their insurance in our system. Offer to just note it down.
 
-Say something like: "Hmm. <break time="200ms"/> It's not coming up in our system. <break time="200ms"/> But that's totally okay! <break time="200ms"/> It might just not be listed yet. <break time="300ms"/> I can take a note of exactly what it says on your card. <break time="200ms"/> What's the name of your insurance company exactly as it appears?"
+Say something like: "Hmm... it's not coming up in our system. But that's totally okay! It might just not be listed yet. I can take a note of exactly what it says on your card... what's the name of your insurance company exactly as it appears?"
 
 Wait for their response.
 
 Once they provide the name:
-- Say "<emotion value="excited"/>Perfect! <break time="200ms"/> I've got that noted down. <break time="200ms"/> We'll verify it on our end."
+- Say "Perfect! I've got that noted down... we'll verify it on our end."
 - Use the save_unverified_insurance function to save it (no need to look it up again)
 """
     elif is_retry:
         task_message = """We couldn't find that insurance in our system. Ask them to clarify.
 
-Say something like: "Hmm. <break time="200ms"/> I'm not finding that one. <break time="200ms"/> Could you tell me the exact name as it appears on your insurance card?"
+Say something like: "Hmm... I'm not finding that one. Could you tell me the exact name as it appears on your insurance card?"
 
 Wait for their response and listen carefully.
 
@@ -600,19 +600,19 @@ Once they provide the insurance name:
     else:
         task_message = """For this step, collect the name of the insurance provider/company.
 
-Say something like: "<emotion value="excited"/>Almost done! <break time="200ms"/> You're doing great. <break time="300ms"/> Last one. <break time="200ms"/> What's the name of your insurance company?"
+Say something like: "Almost done! You're doing great... last one. What's the name of your insurance company?"
 
 Wait for their response. Listen carefully to EXACTLY what insurance name they say.
 
 IMPORTANT - If they pause or seem to be thinking:
 - DO NOT repeat the question
-- Simply wait or say "<emotion value="calm"/>Take your time..." 
+- Simply wait or say "Take your time..." 
 - Only re-ask if they explicitly ask you to repeat
 
 HANDLING PLAYFUL/SILLY RESPONSES:
 If they give a silly or fake insurance name (like random words, jokes, made-up names):
 - Respond with [laughter]! Say "[laughter] Oh, that would be a fun insurance company!" or "[laughter] I don't think we have that one in our system..."
-- Then redirect warmly: "<break time="200ms"/> But really, what insurance company is it? <break time="200ms"/> Should be on your card."
+- Then redirect warmly: "But really, what insurance company is it? Should be on your card."
 - Stay playful but get the real info
 
 HANDLING INSURANCE NAMES:
@@ -691,14 +691,14 @@ def create_confirm_insurance_node(
 
 We matched their insurance to: "{matched_name}"
 
-Say: "<emotion value="excited"/>Got it, {matched_name}! <break time="200ms"/> That's everything I need!" and IMMEDIATELY call confirm_insurance
+Say: "Got it, {matched_name}! That's everything I need!" and IMMEDIATELY call confirm_insurance
 - Do NOT ask for confirmation
 - Just call the function and move on
 """
     else:
         task_message = """We couldn't find an exact match in our database for their insurance.
 
-Say: "<emotion value="calm"/>I don't see that one in our system. <break time="200ms"/> But that's okay! <break time="200ms"/> I'll make a note of it." and IMMEDIATELY call save_unverified_insurance
+Say: "I don't see that one in our system... but that's okay! I'll make a note of it." and IMMEDIATELY call save_unverified_insurance
 - Do NOT ask for confirmation
 - Just call the function and move on
 """

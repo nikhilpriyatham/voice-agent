@@ -68,39 +68,39 @@ def create_wrap_up_node(
         task_message = f"""For this step, wrap up the conversation with {first_name} after successfully collecting their insurance information.
 
 Follow this process:
-1. Thank them with genuine warmth: "<emotion value="excited"/>Perfect! <break time="200ms"/> I've got everything I need. <break time="300ms"/> Thank you so much for taking the time to go through all of that with me, {first_name}. <break time="200ms"/> I really appreciate it!"
+1. Thank them with genuine warmth: "Perfect! I've got everything I need... thank you so much for taking the time to go through all of that with me, {first_name}. I really appreciate it!"
 
-2. Explain next steps reassuringly: "<emotion value="calm"/>So. <break time="200ms"/> We'll verify this with your insurance provider and get your {device_ordered} order processed. <break time="300ms"/> You should hear from us within a few business days!"
+2. Explain next steps reassuringly: "So... we'll verify this with your insurance provider and get your {device_ordered} order processed. You should hear from us within a few business days!"
 
-3. Ask if they have questions: "<break time="300ms"/> Is there anything else I can help you with today?"
+3. Ask if they have questions: "Is there anything else I can help you with today?"
 
 4. CRITICAL - When they say "no", "I'm good", "that's all", "nothing else", etc.:
    - You MUST say a warm goodbye OUT LOUD before ending
-   - Say: "<emotion value="excited"/>Wonderful! <break time="200ms"/> Well, thank you again, {first_name}. <break time="200ms"/> It was so nice chatting with you! <break time="300ms"/> Have a great rest of your day. <break time="200ms"/> And please don't hesitate to call us if you have any questions. <break time="300ms"/> Take care!"
+   - Say: "Wonderful! Well, thank you again, {first_name}... it was so nice chatting with you! Have a great rest of your day, and please don't hesitate to call us if you have any questions. Take care!"
    - ONLY AFTER saying this goodbye message, call the end_task function
    - NEVER call end_task without saying goodbye first!
 
 5. If they have questions about the {device_ordered} order or insurance, answer warmly and helpfully, then offer the goodbye again.
 
-6. If they ask about something unrelated to their order, gently redirect: "[laughter] Oh, I wish I could help with that! <break time="200ms"/> But I'm only able to assist with the {device_ordered} order today. <break time="200ms"/> You can definitely call our main line for other questions though!"
+6. If they ask about something unrelated to their order, gently redirect: "[laughter] Oh, I wish I could help with that! But I'm only able to assist with the {device_ordered} order today... you can definitely call our main line for other questions though!"
 """
     else:
         task_message = f"""For this step, wrap up the conversation with {first_name} - they were not available or chose not to proceed with insurance verification.
 
 Follow this process:
-1. Be genuinely understanding: "<emotion value="calm"/>No problem at all, {first_name}! <break time="200ms"/> I completely understand. <break time="200ms"/> Life gets busy!"
+1. Be genuinely understanding: "No problem at all, {first_name}! I completely understand... life gets busy!"
 
-2. Offer to call back warmly: "Would you like us to give you a call back at a better time? <break time="200ms"/> We'd be happy to go over the insurance details for your {device_ordered} order whenever works for you."
+2. Offer to call back warmly: "Would you like us to give you a call back at a better time? We'd be happy to go over the insurance details for your {device_ordered} order whenever works for you."
 
-3. If yes, acknowledge cheerfully: "<emotion value="excited"/>Perfect! <break time="200ms"/> We'll definitely reach out again soon. <break time="200ms"/> Is this still the best number to reach you at?"
+3. If yes, acknowledge cheerfully: "Perfect! We'll definitely reach out again soon... is this still the best number to reach you at?"
 
 4. CRITICAL - When ready to end the call:
    - You MUST say a warm goodbye OUT LOUD before ending
-   - Say: "Alright, {first_name}. <break time="200ms"/> Well, thank you so much for your time today! <break time="300ms"/> Have a wonderful day. <break time="200ms"/> And we'll be in touch soon. <break time="300ms"/> Take care!"
+   - Say: "Alright, {first_name}... well, thank you so much for your time today! Have a wonderful day, and we'll be in touch soon. Take care!"
    - ONLY AFTER saying this goodbye message, call the end_task function
    - NEVER call end_task without saying goodbye first!
 
-5. If they want to proceed now, respond enthusiastically: "<emotion value="excited"/>Oh, that's great! <break time="200ms"/> Let's do it now then..." but note that this node doesn't have that transition - just end politely and let them know we'll call back.
+5. If they want to proceed now, respond enthusiastically: "Oh, that's great! Let's do it now then..." but note that this node doesn't have that transition - just end politely and let them know we'll call back.
 """
 
     base_functions: List[NodeFunction] = [
@@ -133,7 +133,7 @@ def create_error_end_node() -> dict:
 
     task_message = """An error has occurred. Gracefully end the conversation with warmth.
 
-Say something like: "<emotion value="apologetic"/>Oh, I'm so sorry. <break time="200ms"/> I seem to be experiencing some technical difficulties on my end! <break time="300ms"/> Someone from our team will definitely follow up with you shortly about your order. <break time="200ms"/> Thank you so much for your patience. <break time="300ms"/> And I hope you have a wonderful day!"
+Say something like: "Oh, I'm so sorry... I seem to be experiencing some technical difficulties on my end! Someone from our team will definitely follow up with you shortly about your order. Thank you so much for your patience... and I hope you have a wonderful day!"
 
 Then use the end_task function to end the call.
 """
