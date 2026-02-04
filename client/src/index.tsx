@@ -34,8 +34,6 @@ createRoot(document.getElementById('root')!).render(
         transportType="daily"
         title="Coral Voice Agent"
         logoComponent={<CoralLogo />}
-        enableCam={false}
-        enableMic={true}
         connectParams={{
           endpoint: '/api/connect',
           requestData: {
