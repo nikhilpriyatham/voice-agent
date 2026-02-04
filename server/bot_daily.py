@@ -112,13 +112,14 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     daily_api_key = os.getenv("DAILY_API_KEY", "")
     daily_api_url = os.getenv("DAILY_API_URL", "https://api.daily.co/v1")
 
-    # Create Daily transport with enhanced audio features
+    # Create Daily transport with enhanced audio features (audio-only, no video)
     daily_params = DailyParams(
         api_key=daily_api_key,
         api_url=daily_api_url,
         audio_in_enabled=True,
         audio_out_enabled=True,
-        video_out_enabled=False,
+        camera_enabled=False,  # Disable camera/video input
+        video_out_enabled=False,  # Disable video output
         audio_out_mixer=soundfile_mixer,  # Background audio
         vad_enabled=True,
         vad_analyzer=vad_analyzer,

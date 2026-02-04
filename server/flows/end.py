@@ -65,42 +65,30 @@ def create_wrap_up_node(
     )
 
     if has_insurance_data:
-        task_message = f"""For this step, wrap up the conversation with {first_name} after successfully collecting their insurance information.
+        task_message = f"""Wrap up after collecting insurance info.
 
-Follow this process:
-1. Thank them with genuine warmth: "Perfect! I've got everything I need... thank you so much for taking the time to go through all of that with me, {first_name}. I really appreciate it!"
+Thank them: "Perfect! I've got everything... thank you so much, {first_name}!"
 
-2. Explain next steps reassuringly: "So... we'll verify this with your insurance provider and get your {device_ordered} order processed. You should hear from us within a few business days!"
+Explain next steps: "We'll verify this with your insurance and get your {device_ordered} processed. You'll hear from us in a few days!"
 
-3. Ask if they have questions: "Is there anything else I can help you with today?"
+Ask: "Anything else I can help with today?"
 
-4. CRITICAL - When they say "no", "I'm good", "that's all", "nothing else", etc.:
-   - You MUST say a warm goodbye OUT LOUD before ending
-   - Say: "Wonderful! Well, thank you again, {first_name}... it was so nice chatting with you! Have a great rest of your day, and please don't hesitate to call us if you have any questions. Take care!"
-   - ONLY AFTER saying this goodbye message, call the end_task function
-   - NEVER call end_task without saying goodbye first!
+When they say no/nothing else:
+FIRST: Say goodbye out loud: "Thank you again, {first_name}... have a great day! Take care!"
+SECOND: After saying goodbye, call end_task
 
-5. If they have questions about the {device_ordered} order or insurance, answer warmly and helpfully, then offer the goodbye again.
-
-6. If they ask about something unrelated to their order, gently redirect: "[laughter] Oh, I wish I could help with that! But I'm only able to assist with the {device_ordered} order today... you can definitely call our main line for other questions though!"
+CRITICAL: You must say the goodbye message BEFORE calling end_task. Never call end_task without speaking first.
 """
     else:
-        task_message = f"""For this step, wrap up the conversation with {first_name} - they were not available or chose not to proceed with insurance verification.
+        task_message = f"""Wrap up - they declined.
 
-Follow this process:
-1. Be genuinely understanding: "No problem at all, {first_name}! I completely understand... life gets busy!"
+Say: "No problem, {first_name}! Life gets busy! Want us to call back later about the {device_ordered} insurance?"
 
-2. Offer to call back warmly: "Would you like us to give you a call back at a better time? We'd be happy to go over the insurance details for your {device_ordered} order whenever works for you."
+When ready to end:
+FIRST: Say goodbye: "Thank you for your time! Have a wonderful day, take care!"
+SECOND: Call end_task
 
-3. If yes, acknowledge cheerfully: "Perfect! We'll definitely reach out again soon... is this still the best number to reach you at?"
-
-4. CRITICAL - When ready to end the call:
-   - You MUST say a warm goodbye OUT LOUD before ending
-   - Say: "Alright, {first_name}... well, thank you so much for your time today! Have a wonderful day, and we'll be in touch soon. Take care!"
-   - ONLY AFTER saying this goodbye message, call the end_task function
-   - NEVER call end_task without saying goodbye first!
-
-5. If they want to proceed now, respond enthusiastically: "Oh, that's great! Let's do it now then..." but note that this node doesn't have that transition - just end politely and let them know we'll call back.
+CRITICAL: Say goodbye BEFORE calling end_task.
 """
 
     base_functions: List[NodeFunction] = [
@@ -131,11 +119,11 @@ def create_error_end_node() -> dict:
     """
     logger.info("Creating error end node")
 
-    task_message = """An error has occurred. Gracefully end the conversation with warmth.
+    task_message = """Error occurred. End gracefully.
 
-Say something like: "Oh, I'm so sorry... I seem to be experiencing some technical difficulties on my end! Someone from our team will definitely follow up with you shortly about your order. Thank you so much for your patience... and I hope you have a wonderful day!"
+Say: "Oh, I'm so sorry... technical difficulties! Someone will follow up shortly about your order. Thank you for your patience... have a wonderful day!"
 
-Then use the end_task function to end the call.
+Then call end_task.
 """
 
     base_functions: List[NodeFunction] = [

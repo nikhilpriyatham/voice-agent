@@ -371,33 +371,17 @@ The policy holder may be DIFFERENT from {patient_name}. Use what they tell you.
 def create_collect_dob_node(patient_name: str, device_ordered: str) -> dict:
     """Create node for collecting policy holder's date of birth."""
 
-    task_message = """For this step, collect the policy holder's date of birth.
+    task_message = """Collect the policy holder's date of birth.
 
-Say something like: "Perfect, got it! And... what's the policy holder's date of birth?"
+Say: "Perfect, got it! And... what's the policy holder's date of birth?"
 
-Wait for their response. Listen carefully to EXACTLY what date they say.
+Wait for response.
 
-IMPORTANT - If they pause mid-sentence or seem to be thinking:
-- DO NOT repeat or rephrase the question
-- Simply say "Take your time..." and wait
-- Only re-ask if they explicitly ask you to repeat
+If spelling digit-by-digit: Say "Mmhmm..." after each piece. When they pause, ask "Is that the full date?"
 
-HANDLING PLAYFUL/SILLY RESPONSES:
-If they give a silly answer (like "the year 3000", "yesterday", random nonsense, etc.):
-- Respond with [laughter]! Say "[laughter] Oh, nice try!" or "[laughter] You're funny..."
-- Then gently redirect: "But for real, what's the date of birth on the insurance?"
-- Stay warm and keep it light
+If silly answer: [laughter] then redirect: "But for real, what's the date of birth?"
 
-Once they provide the COMPLETE date:
-- Convert their response to mm/dd/yyyy format internally
-- Say "Got it!" and IMMEDIATELY call save_dob with the date
-- Do NOT ask for confirmation - just move on
-
-IMPORTANT - Date format conversion examples:
-- "June 8th, 1996" -> save as "06/08/1996"
-- "August 15 1990" -> save as "08/15/1990"
-- "6/8/96" -> save as "06/08/1996"
-- Always use 4-digit years
+When they provide complete date: Call save_dob immediately in mm/dd/yyyy format (4-digit years).
 """
 
     custom_functions = [
@@ -437,31 +421,11 @@ Say something like: "Alright... now I'll need the policy number. Take your time,
 
 Wait for their response.
 
-CRITICAL - HANDLING LETTER-BY-LETTER SPELLING:
-If they're spelling it out one letter/number at a time (e.g., "X", then "1", then "2"):
-- Say "Mmhmm..." after each piece to show you're listening
-- If they pause after giving some digits, ask: "Is that the full number, or is there more?"
-- Keep collecting until they confirm it's complete
+If they're spelling it letter-by-letter, say "Mmhmm..." after each piece. If they pause, ask: "Is that the full number?"
 
-HANDLING PLAYFUL/SILLY RESPONSES:
-If they give a silly answer (like "a million", "12345678910", "my phone number", random words, etc.):
-- Respond with [laughter]! Say "[laughter] Oh, I wish it was that easy!" or "[laughter] Good one..."
-- Then redirect: "But what's the actual policy number on your card?"
-- Stay playful but get the real info
+If they give a silly answer, respond with [laughter] and redirect: "But what's the actual policy number?"
 
-HANDLING FRUSTRATION (sighing, "ugh", "this is so long", impatient tone):
-- Acknowledge warmly: "I know... insurance cards can be a maze of numbers."
-- Offer help: "It's usually the longest number on there, often labeled Member ID or Policy Number."
-- Reassure: "We're getting close to the end, I promise!"
-
-IMPORTANT - When they give you digits and then pause:
-- DO NOT stay silent for too long
-- Ask: "Is that the full number?" or "Got it... anything else on there?"
-- This helps them know you're ready to move on or hear more
-
-Once they confirm the number is complete (say "yes", "that's it", "that's all", etc.):
-- Say "Got it!" and IMMEDIATELY call save_policy_number
-- Do NOT ask for confirmation - just move on
+When they provide a policy number, call save_policy_number immediately with what they said.
 """
 
     custom_functions = [
@@ -495,42 +459,19 @@ Once they confirm the number is complete (say "yes", "that's it", "that's all", 
 def create_collect_group_number_node(patient_name: str, device_ordered: str) -> dict:
     """Create node for collecting group number."""
 
-    task_message = """For this step, collect the insurance group number.
+    task_message = """Collect the insurance group number.
 
-Say something like: "Great! And the group number? That should be on there too... but no worries if you don't have one!"
+Say: "Great! And the group number? That should be on there too... but no worries if you don't have one!"
 
-Wait for their response.
+Wait for response.
 
-CRITICAL - HANDLING LETTER-BY-LETTER SPELLING:
-If they're spelling it out one letter/number at a time (e.g., "G", then "R", then "P"):
-- Say "Mmhmm..." after each piece to show you're listening
-- If they pause after giving some digits, ask: "Is that all, or is there more?"
-- Keep collecting until they confirm it's complete
+If spelling letter-by-letter: Say "Mmhmm..." after each piece. If they pause, ask "Is that all?"
 
-HANDLING PLAYFUL/SILLY/FLIRTY RESPONSES:
-If they give a silly answer, make jokes, flirt, or go off-topic (like "I want to see you", random words, etc.):
-- Respond with [laughter]! Say "[laughter] You're too sweet!" or "[laughter] You're keeping me entertained..."
-- Then redirect firmly: "But back to business... is there a group number on your card, or no?"
-- If they say no after being redirected, call save_group_number with "N/A" immediately
-- Stay warm but keep the conversation moving forward
+If silly answer: Respond with [laughter] and redirect: "But back to business... is there a group number?"
 
-HANDLING CONFUSION ("what's a group number?", "I don't see it", uncertain tone):
-- Help them: "No worries! It might say Group or GRP on your card... sometimes it's near the policy number."
-- Reassure: "If you don't see one, that's totally fine! Not all cards have it."
+If confused: Help them: "It might say Group or GRP... if you don't see one, that's fine!"
 
-IMPORTANT - When they give you digits and then pause:
-- DO NOT stay silent for too long
-- Ask: "Is that the full number?" or "Got it... anything else?"
-- This helps them know you're ready to move on or hear more
-
-Once they confirm the number is complete (say "yes", "that's it", "that's all", etc.):
-- Say "Got it!" and IMMEDIATELY call save_group_number
-- Do NOT ask for confirmation - just move on
-
-CRITICAL - If they say they DON'T HAVE a group number (e.g., "I don't have one", "there's no group number", "I don't see one", "no", "nope"):
-- Say something brief like: "No problem at all!"
-- You MUST call save_group_number with "N/A" IN THE SAME RESPONSE - do not wait for another turn
-- The ONLY way to proceed is by calling save_group_number - there is no other transition
+When they confirm complete or say they don't have one: Call save_group_number immediately (use "N/A" if none).
 """
 
     custom_functions = [
@@ -572,54 +513,31 @@ def create_collect_insurance_provider_node(
 
     if is_retry and retry_count >= 1:
         # After 1 failed attempt, offer to just note it down
-        task_message = """We've tried but can't find their insurance in our system. Offer to just note it down.
+        task_message = """Can't find their insurance. Offer to note it down.
 
-Say something like: "Hmm... it's not coming up in our system. But that's totally okay! It might just not be listed yet. I can take a note of exactly what it says on your card... what's the name of your insurance company exactly as it appears?"
+Say: "Hmm... it's not coming up. But that's okay! I can note what's on your card... what's the exact name?"
 
-Wait for their response.
-
-Once they provide the name:
-- Say "Perfect! I've got that noted down... we'll verify it on our end."
-- Use the save_unverified_insurance function to save it (no need to look it up again)
+When they provide it: Say "Perfect! I've got that noted..." and call save_unverified_insurance.
 """
     elif is_retry:
-        task_message = """We couldn't find that insurance in our system. Ask them to clarify.
+        task_message = """Not found. Ask to clarify.
 
-Say something like: "Hmm... I'm not finding that one. Could you tell me the exact name as it appears on your insurance card?"
+Say: "Hmm... I'm not finding that one. Could you tell me the exact name on your card?"
 
-Wait for their response and listen carefully.
-
-Once they provide the insurance name:
-- Say "Let me check that..." 
-- Use the lookup_insurance_provider function with exactly what they said
+When they provide it: Say "Let me check..." and call lookup_insurance_provider.
 """
     else:
-        task_message = """For this step, collect the name of the insurance provider/company.
+        task_message = """Collect the insurance provider/company name.
 
-Say something like: "Almost done! You're doing great... last one. What's the name of your insurance company?"
+Say: "Almost done! You're doing great... last one. What's the name of your insurance company?"
 
-Wait for their response. Listen carefully to EXACTLY what insurance name they say.
+Wait for response. If they pause, say "Take your time..."
 
-IMPORTANT - If they pause or seem to be thinking:
-- DO NOT repeat the question
-- Simply wait or say "Take your time..." 
-- Only re-ask if they explicitly ask you to repeat
+If silly answer: [laughter] then redirect: "But really, what insurance is it?"
 
-HANDLING PLAYFUL/SILLY RESPONSES:
-If they give a silly or fake insurance name (like random words, jokes, made-up names):
-- Respond with [laughter]! Say "[laughter] Oh, that would be a fun insurance company!" or "[laughter] I don't think we have that one in our system..."
-- Then redirect warmly: "But really, what insurance company is it? Should be on your card."
-- Stay playful but get the real info
+Accept abbreviations (BCBS, UHC, etc.) and partial names.
 
-HANDLING INSURANCE NAMES:
-- Common abbreviations: BCBS = Blue Cross Blue Shield, UHC = UnitedHealthcare, etc.
-- If they say just "Blue Cross" or "BCBS", that's sufficient - accept it
-- If they give a partial name that's recognizable, accept it
-
-Once they provide the insurance provider name:
-- Say "Let me look that up in our system..." 
-- Use the lookup_insurance_provider function with exactly what they said
-- We'll check our database and confirm the match with them
+When they provide the name: Say "Let me look that up..." and call lookup_insurance_provider with what they said.
 """
 
     custom_functions = [

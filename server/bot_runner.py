@@ -123,8 +123,7 @@ async def connect(request: Request) -> JSONResponse:
                     enable_chat=False,
                     enable_emoji_reactions=False,
                     enable_hand_raising=False,
-                    start_video_off=True,
-                    enable_video_processing=False,  # Completely disable video for lower latency
+                    start_video_off=True,  # Disable video for lower latency
                 )
             )
         )

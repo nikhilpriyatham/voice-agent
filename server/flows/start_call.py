@@ -72,45 +72,26 @@ Today: {datetime.now().strftime("%A, %B %d, %Y")}
 
     # Personalize greeting if we have past context
     if past_context:
-        task_message = f"""For this step, greet {patient_name} warmly. You've spoken with them before!
+        task_message = f"""Greet {patient_name} warmly - you've spoken before!
 
-PAST INTERACTION CONTEXT:
-{past_context}
+Past context: {past_context}
 
-Use this context naturally if relevant. For example:
-- "Hi {patient_name}! This is Amanda from Dasco again..."
-- If they had issues before: "I hope things have been going smoothly since we last spoke!"
+Say: "Hi there! This is Amanda calling from Dasco again... I'm reaching out about the {device_ordered}. We just need to verify a few insurance details. Is now a good time?"
 
-Say something like: "Hi there! This is Amanda calling from Dasco... good to connect with you again! I'm reaching out about the {device_ordered} you recently ordered. We just need to verify a few insurance details. Is now a good time to chat?"
+Say greeting ONCE. Listen to response.
 
-IMPORTANT: Say the greeting ONLY ONCE. Do NOT repeat it.
-
-Then listen to their response:
-
-CRITICAL - Handle these responses:
-- If they say "hey", "hi", "hello", or just acknowledge → They're engaged! Treat this as a YES and proceed.
-- If they say "yes", "yeah", "sure", "okay", "good time", etc. → Respond "Oh great! This should only take a few minutes..." and IMMEDIATELY call proceed_to_insurance
-- If they say "no", "not now", "busy", "bad time", etc. → Respond "No problem at all!" and use end_conversation
-- If they want to end the call → Be gracious and use end_conversation
-
-Do NOT repeat the greeting under any circumstances. If they responded at all, they heard you.
+If they acknowledge ("hey", "yes", "sure"): Say "Great! This'll just take a few minutes..." and call proceed_to_insurance
+If they decline ("no", "busy"): Use end_conversation
 """
     else:
-        task_message = f"""For this step, greet {patient_name} warmly and check if it's a good time to talk.
+        task_message = f"""Greet {patient_name} warmly and check if it's a good time.
 
-Say exactly: "Hi there! This is Amanda calling from Dasco... I'm reaching out about the {device_ordered} you recently ordered. We just need to verify a few insurance details to get that processed for you. Is now a good time to chat?"
+Say: "Hi there! This is Amanda calling from Dasco... I'm reaching out about the {device_ordered} you recently ordered. We just need to verify a few insurance details. Is now a good time?"
 
-IMPORTANT: Say the greeting ONLY ONCE. Do NOT repeat it.
+Say greeting ONCE. Listen to response.
 
-Then listen to their response:
-
-CRITICAL - Handle these responses:
-- If they say "hey", "hi", "hello", or just acknowledge → They're engaged! Treat this as a YES and proceed.
-- If they say "yes", "yeah", "sure", "okay", "good time", etc. → Respond "Oh great! This should only take a few minutes..." and IMMEDIATELY call proceed_to_insurance
-- If they say "no", "not now", "busy", "bad time", etc. → Respond "No problem at all!" and use end_conversation
-- If they want to end the call → Be gracious and use end_conversation
-
-Do NOT repeat the greeting under any circumstances. If they responded at all, they heard you.
+If they acknowledge ("hey", "yes", "sure"): Say "Great! This'll just take a few minutes..." and call proceed_to_insurance
+If they decline ("no", "busy"): Use end_conversation
 """
 
     custom_functions = [
