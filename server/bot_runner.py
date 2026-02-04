@@ -115,7 +115,7 @@ async def connect(request: Request) -> JSONResponse:
     logger.info(f"Creating room for patient: {patient_name}, device: {device_ordered}")
 
     try:
-        # Create a Daily room
+        # Create a Daily room (audio-only for better performance)
         room = await daily_helpers["rest"].create_room(
             DailyRoomParams(
                 properties=DailyRoomProperties(
@@ -124,6 +124,7 @@ async def connect(request: Request) -> JSONResponse:
                     enable_emoji_reactions=False,
                     enable_hand_raising=False,
                     start_video_off=True,
+                    enable_video_processing=False,  # Completely disable video for lower latency
                 )
             )
         )
