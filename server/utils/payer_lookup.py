@@ -7,6 +7,7 @@ functionality to match user-provided insurance names against known payers.
 
 import csv
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
 
@@ -61,6 +62,8 @@ class PayerLookup:
         self.csv_path = Path(csv_path)
         self.payers: List[Payer] = []
         self._name_to_payer: dict[str, Payer] = {}
+        self._match_cache = {}  # LRU cache for get_best_match results
+        self._cache_max_size = 100  # Cache up to 100 recent searches
         self._load_payers()
 
     def _load_payers(self):
@@ -232,6 +235,7 @@ class PayerLookup:
     ) -> Optional[PayerMatch]:
         """
         Get the best match if it exceeds the confidence threshold.
+        Results are cached for performance (LRU cache with 100 entries).
 
         Args:
             query: Insurance name to search
@@ -240,5 +244,19 @@ class PayerLookup:
         Returns:
             Best PayerMatch if above threshold, None otherwise
         """
+        # Check cache first
+        cache_key = (query.lower().strip(), threshold)
+        if cache_key in self._match_cache:
+            return self._match_cache[cache_key]
+
+        # Perform search
         matches = self.search(query, top_k=1, min_score=threshold)
-        return matches[0] if matches else None
+        result = matches[0] if matches else None
+
+        # Cache result (simple FIFO when cache is full)
+        if len(self._match_cache) >= self._cache_max_size:
+            # Remove oldest entry (first key)
+            self._match_cache.pop(next(iter(self._match_cache)))
+
+        self._match_cache[cache_key] = result
+        return result

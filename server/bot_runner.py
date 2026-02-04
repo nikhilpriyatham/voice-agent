@@ -22,8 +22,17 @@ from pipecat.transports.services.helpers.daily_rest import (
     DailyRoomParams,
     DailyRoomProperties,
 )
+from utils.payer_singleton import get_payer_lookup  # Pre-load payer database
 
 load_dotenv(override=True)
+
+# Pre-load payer lookup at server startup (saves 1-2s per call)
+logger.info("Initializing payer lookup singleton at startup...")
+try:
+    get_payer_lookup()
+    logger.info("Payer lookup singleton loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to pre-load payer lookup: {e}")
 
 # Configuration
 MAX_SESSION_TIME = 10 * 60  # 10 minutes

@@ -132,8 +132,8 @@ async def handle_lookup_insurance(args: Dict, result: dict, flow_manager: FlowMa
     match_score = 0.0
 
     if payer_lookup and raw_provider:
-        # Try to match against known payers - require 85%+ confidence
-        best_match = payer_lookup.get_best_match(raw_provider, threshold=85.0)
+        # Try to match against known payers - require 78%+ confidence (optimized threshold)
+        best_match = payer_lookup.get_best_match(raw_provider, threshold=78.0)
 
         if best_match:
             matched_name = best_match.payer.display_name
@@ -145,9 +145,9 @@ async def handle_lookup_insurance(args: Dict, result: dict, flow_manager: FlowMa
             )
         else:
             # Log when we don't find a good match
-            logger.info(f"No match found for '{raw_provider}' with >= 85% confidence")
+            logger.info(f"No match found for '{raw_provider}' with >= 78% confidence")
 
-    # If no good match (< 85%), ask the user to clarify
+    # If no good match (< 78%), ask the user to clarify
     if not matched_name:
         # Track retry count
         retry_count = flow_manager.state.get("insurance_retry_count", 0) + 1
