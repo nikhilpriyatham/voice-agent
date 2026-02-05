@@ -1,7 +1,9 @@
-pipecat-ai[daily,webrtc,silero,deepgram,openai,cartesia,runner,azure,soundfile]>=0.0.77
+pipecat-ai[daily,webrtc,silero,deepgram,openai,cartesia,runner,azure,soundfile,koala]>=0.0.77
 aiohttp>=3.9.0
 pipecat-ai-flows>=0.0.16
 loguru>=0.7.2
 mem0ai
 rapidfuzz>=3.0.0
 python-dateutil>=2.8.0
+pvcobra>=2.0.0
+pvkoala>=2.0.0
