@@ -35,9 +35,9 @@ except Exception:
 from dotenv import load_dotenv
 from flows.start_call import create_start_call_node
 from loguru import logger
-from mem0 import MemoryClient
-from pipecat.audio.mixers.soundfile_mixer import SoundfileMixer
+# from utils.random_ambience import RandomAmbienceProcessor  # Disabled - interferes with speech detection
 from pipecat.audio.vad.vad_analyzer import VADParams
+from pipecat.audio.filters.koala_filter import KoalaFilter
 from utils.picovoice_vad import PicovoiceCobraVADAnalyzer
 from pipecat.frames.frames import EndTaskFrame, TTSSpeakFrame
 from pipecat.pipeline.pipeline import Pipeline
@@ -53,14 +53,9 @@ from pipecat.transports.daily.transport import DailyParams, DailyTransport
 from pipecat_flows import FlowManager
 from utils.user_idle_processor import UserIdleProcessor
 
-# Try to import KrispVivaFilter (requires Krisp VIVA SDK)
-try:
-    from pipecat.audio.filters.krisp_viva_filter import KrispVivaFilter
-
-    KRISP_VIVA_AVAILABLE = True
-except Exception:
-    KRISP_VIVA_AVAILABLE = False
-    logger.warning("KrispVivaFilter not available - noise cancellation disabled")
+# Krisp VIVA filter disabled (requires paid SDK with license)
+# To enable: install krisp_audio package and set KRISP_VIVA_MODEL_PATH env variable
+KRISP_VIVA_AVAILABLE = False
 
 load_dotenv(override=True)
 
@@ -70,20 +65,16 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     logger.info(f"Starting bot for patient: {patient_name}, device: {device_ordered}")
     logger.info(f"Connecting to room: {room_url}")
 
-    # Initialize mem0 client for conversation memory
-    mem0_api_key = os.getenv("MEM0_API_KEY")
-    mem0_client = MemoryClient(api_key=mem0_api_key) if mem0_api_key else None
-    if mem0_client:
-        logger.info("Mem0 memory client initialized")
-    else:
-        logger.warning("MEM0_API_KEY not set, conversation memory disabled")
+    # Mem0 disabled for now
+    mem0_client = None
 
     # Configure VAD - Picovoice Cobra for ultra-low latency and noise immunity
+    # Phase 1: More aggressive thresholds to reduce false triggers from background noise
     vad_params = VADParams(
-        confidence=0.6,  # Cobra is more precise, can use lower threshold
-        min_volume=0.3,  # Cobra handles noise better, more sensitive
-        start_secs=0.1,  # Faster detection (50-100ms with Cobra)
-        stop_secs=0.2,  # Quick stop for responsive turn-taking
+        confidence=0.8,  # Increased from 0.7 - require clearer speech
+        min_volume=0.6,  # Increased from 0.4 - filter quieter noise
+        start_secs=0.6,  # Increased from 0.4 - require longer speech (600ms)
+        stop_secs=0.5,  # Increased from 0.3 - longer silence before stop
     )
 
     # Get Picovoice access key
@@ -98,45 +89,44 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
     )
     logger.info("Using Picovoice Cobra VAD (optimized for real-time)")
 
-    # Initialize SoundfileMixer for background audio
-    # Note: Audio file must match Cartesia TTS sample rate (24kHz)
-    soundfile_mixer = SoundfileMixer(
-        sound_files={"office": "./assets/office-ambience-24khz-short.mp3"},
-        default_sound="office",
-        volume=0.2,  # Moderate volume - low enough to not trigger VAD
-        loop=True,  # Loop the background audio continuously
-        mixing=True,  # Mix with bot speech (both play together)
-    )
+    # Random ambience disabled - interferes with bot speech detection
+    # The audio frames were triggering "bot speaking" events and pausing user idle monitoring
+    # TODO: Need to implement at transport mixer level instead of pipeline level
 
     # Get Daily API credentials for transport
     daily_api_key = os.getenv("DAILY_API_KEY", "")
     daily_api_url = os.getenv("DAILY_API_URL", "https://api.daily.co/v1")
+
+    # Create Koala noise filter using existing PicoVoice key
+    # Phase 2: Add noise suppression before VAD to prevent false triggers
+    koala_filter = None
+    if picovoice_key:
+        try:
+            koala_filter = KoalaFilter(access_key=picovoice_key)
+            logger.info("Koala noise filter initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Koala filter: {e}")
+            koala_filter = None
+    else:
+        logger.warning("PICOVOICE_COBRA not set - noise filtering disabled")
 
     # Create Daily transport with enhanced audio features (audio-only, no video)
     daily_params = DailyParams(
         api_key=daily_api_key,
         api_url=daily_api_url,
         audio_in_enabled=True,
+        audio_in_filter=koala_filter,  # Phase 2: Noise suppression before VAD
         audio_out_enabled=True,
         camera_enabled=False,  # Disable camera/video input
         video_out_enabled=False,  # Disable video output
-        audio_out_mixer=soundfile_mixer,  # Background audio
         vad_enabled=True,
         vad_analyzer=vad_analyzer,
         vad_audio_passthrough=True,  # For transcript handling
         transcription_enabled=False,  # We use Deepgram directly
     )
 
-    # Add Krisp VIVA noise cancellation if available
-    if KRISP_VIVA_AVAILABLE:
-        # Get model path from environment or use default
-        model_path = os.getenv("KRISP_VIVA_MODEL_PATH")
-        krisp_params = {}
-        if model_path:
-            krisp_params["model_path"] = model_path
-
-        daily_params.audio_in_filter = KrispVivaFilter(**krisp_params)
-        logger.info("Krisp VIVA noise cancellation enabled")
+    # Krisp VIVA noise cancellation disabled (requires paid SDK)
+    # Note: KRISP_VIVA_AVAILABLE is set to False at the top of this file
 
     transport = DailyTransport(
         room_url,
@@ -219,6 +209,7 @@ async def run_bot(room_url: str, token: str, patient_name: str, device_ordered: 
             context_aggregator.user(),
             llm,
             tts,
+            # random_ambience disabled - was interfering with bot speech detection
             transport.output(),
             context_aggregator.assistant(),
         ]

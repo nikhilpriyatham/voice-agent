@@ -37,7 +37,7 @@ createRoot(document.getElementById('root')!).render(
         connectParams={{
           endpoint: '/api/connect',
           requestData: {
-            patient_name: 'John Miller',
+            patient_name: '',
             device_ordered: 'wheelchair',
           },
         }}

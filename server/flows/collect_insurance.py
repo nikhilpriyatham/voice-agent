@@ -18,8 +18,6 @@ logger = logger.bind(name=__name__)
 async def handle_collect_insurance(args: Dict, result: dict, flow_manager: FlowManager):
     """Handle the insurance collection flow - starts from the first field."""
     logger.info("Starting insurance collection flow")
-    patient_name = flow_manager.state.get("patient_name", "the patient")
-    device_ordered = flow_manager.state.get("device_ordered", "medical equipment")
 
     # Initialize collected data in state
     if "insurance_data" not in flow_manager.state:
@@ -27,7 +25,7 @@ async def handle_collect_insurance(args: Dict, result: dict, flow_manager: FlowM
 
     await flow_manager.set_node(
         "collect_policy_holder",
-        create_collect_policy_holder_node(patient_name, device_ordered),
+        create_collect_policy_holder_node(),
     )
 
 
@@ -313,10 +311,10 @@ async def handle_finish_collection(args: Dict, result: dict, flow_manager: FlowM
 # ============ Node Creation Functions ============
 
 
-def create_collect_policy_holder_node(patient_name: str, device_ordered: str) -> dict:
+def create_collect_policy_holder_node() -> dict:
     """Create node for collecting policy holder name."""
 
-    task_message = f"""Collect the insurance policy holder's name from {patient_name}.
+    task_message = """Collect the insurance policy holder's name.
 
 Ask: "Great! So first things first... could you tell me the name of the policy holder on your insurance?"
 
@@ -336,8 +334,6 @@ CRITICAL RULE - When they give you a REAL name (e.g., "John Smith"):
 1. Say their name out loud briefly and IMMEDIATELY save
 2. Say: "Got it, [NAME]!" and IMMEDIATELY call save_policy_holder
 3. Do NOT ask for confirmation - just move on
-
-The policy holder may be DIFFERENT from {patient_name}. Use what they tell you.
 """
 
     custom_functions = [
@@ -465,13 +461,15 @@ Say: "Great! And the group number? That should be on there too... but no worries
 
 Wait for response.
 
-If spelling letter-by-letter: Say "Mmhmm..." after each piece. If they pause, ask "Is that all?"
+If they say they don't have one ("I don't have one", "no", "nope", "don't have it"): Call save_group_number("N/A") immediately.
 
-If silly answer: Respond with [laughter] and redirect: "But back to business... is there a group number?"
+If they say they have one but pause: Say "Take your time..." and wait for them to provide it.
 
-If confused: Help them: "It might say Group or GRP... if you don't see one, that's fine!"
+If they then say they don't have one after all: Call save_group_number("N/A") immediately.
 
-When they confirm complete or say they don't have one: Call save_group_number immediately (use "N/A" if none).
+If spelling letter-by-letter: Say "Mmhmm..." after each piece.
+
+When they provide a complete number: Call save_group_number with that number.
 """
 
     custom_functions = [

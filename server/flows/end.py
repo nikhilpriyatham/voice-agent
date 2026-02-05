@@ -73,11 +73,16 @@ Explain next steps: "We'll verify this with your insurance and get your {device_
 
 Ask: "Anything else I can help with today?"
 
-When they say no/nothing else:
-FIRST: Say goodbye out loud: "Thank you again, {first_name}... have a great day! Take care!"
-SECOND: After saying goodbye, call end_task
+If they say YES or have a question:
+- Answer briefly if it's about the {device_ordered} order or insurance
+- If unrelated: "I'm only able to help with the {device_ordered} order today... you can call our main line for other questions!"
+- After answering, ask again: "Anything else?"
 
-CRITICAL: You must say the goodbye message BEFORE calling end_task. Never call end_task without speaking first.
+If they say NO/nothing else/I'm good:
+FIRST: Say goodbye: "Thank you again, {first_name}... have a great day! Take care!"
+SECOND: Call end_task
+
+CRITICAL: Say goodbye BEFORE calling end_task.
 """
     else:
         task_message = f"""Wrap up - they declined.
